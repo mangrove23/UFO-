@@ -1,0 +1,1841 @@
+<title>하시와타시 UFO 캐쳐</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e13; }
+body {
+  font: 13px/1.45 "Pretendard", "Malgun Gothic", system-ui, sans-serif;
+  color: #e6ebf2; -webkit-user-select: none; user-select: none; touch-action: none;
+}
+canvas { display: block; }
+
+#boot { position: fixed; inset: 0; display: grid; place-content: center; color: #8fa3bd; padding: 24px; }
+#boot pre { white-space: pre-wrap; font-size: 11px; color: #ff8a8a; max-width: 80vw; }
+
+/* ---------- HUD ---------- */
+.hud {
+  position: fixed; left: 12px; top: 12px; width: 234px; padding: 10px 12px;
+  background: rgba(14, 18, 26, .82); border: 1px solid #232b38; border-radius: 10px;
+  backdrop-filter: blur(6px); font-size: 12px;
+}
+.hud hr { border: 0; border-top: 1px solid #232b38; margin: 7px 0; }
+.hud .row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
+.hud .row span { color: #8fa3bd; }
+.hud .row b { color: #e6ebf2; font-weight: 600; text-align: right; white-space: nowrap; }
+.hud .row.wrap { display: block; }
+.hud .row.wrap b { display: block; text-align: left; white-space: normal; font-size: 11px; }
+.hud .muted { color: #7c8ba1; }
+.hud .good { color: #4ade80 !important; }
+.hud .bad { color: #fb7185 !important; }
+
+/* ---------- 조작 버튼 ---------- */
+.pad {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px;
+  display: flex; gap: 12px; z-index: 5;
+}
+.padbtn {
+  width: 150px; padding: 12px 8px; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(#232b38, #171d27); color: #e6ebf2;
+  border: 1px solid #313c4d; box-shadow: 0 4px 0 #10151d, 0 8px 18px rgba(0,0,0,.45);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  transition: transform .05s, box-shadow .05s, background .12s;
+  font-family: inherit;
+}
+.padbtn .big { font-size: 16px; font-weight: 700; letter-spacing: .5px; }
+.padbtn .sub { font-size: 10px; color: #8fa3bd; line-height: 1.3; text-align: center; }
+.padbtn.on {
+  background: linear-gradient(#3b82f6, #2563eb); border-color: #60a5fa;
+  transform: translateY(4px); box-shadow: 0 0 0 #10151d, 0 4px 14px rgba(59,130,246,.5);
+}
+.padbtn.on .sub { color: #dbeafe; }
+
+/* ---------- 툴바 ---------- */
+.toolbar {
+  position: fixed; right: 12px; top: 12px; display: flex; flex-wrap: wrap;
+  justify-content: flex-end; gap: 6px; max-width: 340px; z-index: 6;
+}
+.tool {
+  padding: 6px 10px; font-size: 11px; border-radius: 7px; cursor: pointer;
+  background: rgba(20,26,36,.86); color: #cbd5e1; border: 1px solid #2b3547;
+  font-family: inherit;
+}
+.tool:hover { background: #1d2531; }
+.tool.active { background: #2563eb; border-color: #60a5fa; color: #fff; }
+.tool.accent { background: #1f2937; border-color: #475569; }
+
+/* ---------- 튜닝 패널 ---------- */
+.panel {
+  position: fixed; right: 12px; top: 82px; bottom: 12px; width: 320px;
+  background: rgba(12,16,23,.94); border: 1px solid #232b38; border-radius: 10px;
+  overflow-y: auto; padding: 10px 12px 16px; display: none; z-index: 4;
+}
+.panel.open { display: block; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.sec { margin-top: 12px; }
+.sec-title {
+  font-size: 11px; font-weight: 700; color: #7dd3fc; letter-spacing: .4px;
+  border-bottom: 1px solid #232b38; padding-bottom: 4px; margin-bottom: 6px;
+}
+.srow { display: grid; grid-template-columns: 118px 1fr 44px; align-items: center; gap: 6px; padding: 2px 0; }
+.sname { font-size: 11px; color: #9fb0c6; }
+.sval { font-size: 11px; color: #e6ebf2; text-align: right; font-variant-numeric: tabular-nums; }
+.slider { width: 100%; accent-color: #3b82f6; }
+
+/* ---------- 승리 오버레이 ---------- */
+.overlay {
+  position: fixed; inset: 0; display: grid; place-content: center; pointer-events: none;
+  opacity: 0; transition: opacity .25s; z-index: 8;
+}
+.overlay.show { opacity: 1; }
+.overlay .win {
+  font-size: 68px; font-weight: 900; letter-spacing: 4px; color: #ffe066;
+  text-shadow: 0 6px 30px rgba(255,224,102,.55); text-align: center;
+}
+.overlay .win span { display: block; font-size: 15px; font-weight: 600; color: #e6ebf2; letter-spacing: 0; margin-top: 6px; }
+
+@media (max-width: 820px) {
+  .padbtn { width: 108px; }
+  .panel { width: 280px; }
+  .hud { width: 200px; font-size: 11px; }
+}
+
+</style>
+<div id="boot">물리 엔진 로딩 중…</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js';
+import * as __rapierNS from 'https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js';
+const RAPIER = (__rapierNS && __rapierNS.World) ? __rapierNS : (__rapierNS.default || __rapierNS);
+const __boot = document.getElementById('boot');
+addEventListener('error', e => { if (__boot && __boot.isConnected) __boot.textContent = 'ERROR: ' + e.message; });
+
+// ===== src/config.js =====
+
+// 모든 튜닝 가능한 파라미터. 단위는 m / kg / s (1cm = 0.01)
+// 값을 바꾸면 UI 패널에서 바로 반영되며, localStorage 에 저장된다.
+
+const DEFAULTS = {
+  // ---- 봉(bar) 배치 ----
+  barRadius: 0.009,      // 봉 반지름 (1.8cm 굵기)
+  barLength: 0.92,       // 봉 길이 (좌우축 X 방향)
+  barGapZ: 0.140,        // 2번-3번 봉 중심 간격 (틈). 실효 틈 = 이 값 - 2*barRadius
+  barOuterZ: 0.160,      // 1번/4번 봉 중심의 |z|
+  barLowY: 0.55,         // 2·3번 봉 중심 높이
+  // 1·4번 봉이 2·3번보다 높은 양.
+  // (사양서의 12cm 로 올리면 박스가 1번 봉에 걸쳐 머무는 안정 자세가 사라진다 — README 참고)
+  barRaise: 0.045,
+
+  // ---- 마찰 (게임성의 핵심) ----
+  frictionRubber: 1.60,  // 2·3번 봉: 고무 코팅
+  frictionSlick: 0.125,  // 1·4번 봉: 코팅 없음 (미끄럼)
+  frictionBox: 1.0,      // 박스 표면 (봉 쪽 Multiply 규칙으로 결합)
+  frictionFloor: 0.75,
+  frictionClaw: 0.20,
+
+  // ---- 상품 박스 (빳빳한 종이) ----
+  boxW: 0.12,            // X (가로, 봉과 평행)
+  boxH: 0.10,            // Y (세로/높이)
+  boxD: 0.20,            // Z (봉과 수직 — 가장 긴 변)
+  boxMass: 0.20,
+  boxRestitution: 0.02,
+  boxLinDamp: 0.15,
+  boxAngDamp: 0.25,
+
+  // ---- 종이 찌그러짐 (시각 전용, 물리 형상은 강체 유지) ----
+  paperDent: 0.014,      // 최대 눌림 깊이
+  paperRadius: 0.060,    // 눌림이 퍼지는 반경
+  paperAttack: 0.06,     // 눌리는 속도(시정수, 작을수록 즉각)
+  paperRecover: 0.30,    // 되돌아오는 속도(시정수, 클수록 천천히)
+
+  // ---- 집게 ----
+  // 벌림각 spread: 0 = 두 발끝이 정중앙에서 맞닿음, 클수록 벌어짐.
+  clawPivotX: 0.100,     // 발 회전축의 |x| (= 발끝이 안쪽으로 뻗는 길이와 동일)
+  clawArmLen: 0.170,     // 발 길이
+  clawTipThick: 0.006,   // 발끝 판 두께의 절반 (납작한 판)
+  clawTipWidth: 0.021,   // 발끝 판 폭의 절반 (Z 방향)
+  // 발가락(안쪽으로 꺾인 판) 길이의 절반.
+  // 발가락은 발(팔)의 안쪽 면에 붙어 있고 거기서부터 안쪽으로 뻗는다.
+  // 따라서 이 값을 줄이면 박스 밑으로 파고드는 도달 거리도 같이 짧아진다.
+  clawTipLen: 0.0225,
+  clawOpenSpread: 0.85,  // 벌어졌을 때 (rad)
+  clawCloseSpread: 0.00,  // 발가락이 짧아져 서로 부딪히지 않으므로 끝까지 오므린다
+  // 파지력은 "각도 오차 × 강성" 이 아니라 일정한 토크로 준다.
+  // (모터 강성을 매 프레임 torque/오차 로 역산 → 박스 폭과 무관하게 힘이 일정)
+  clawGripTorque: 0.62,  // N·m. 발 하나가 박스를 무는 힘
+  clawSlipTorque: 0.10,  // grip 실패 시 토크
+  // grip 실패 시: 들어올리는 도중 모터가 버티지 못하고 발이 이만큼 벌어진다.
+  // (실기에서도 상승 직후 파지압이 빠지면서 놓친다)
+  clawSlipSpread: 0.58,
+  clawSlipDelay: 0.40,   // 오므린 뒤 이 시간이 지나면 벌어짐
+  clawGripDamping: 0.35,
+  clawMaxStiffness: 400, // 역산 강성 상한 (수치 안정용)
+  clawFingerMass: 0.18,
+  clawMotorSpeed: 2.4,   // 발 개폐 속도 (rad/s)
+
+  // ---- 집게 이동 ----
+  clawSpeedX: 0.19,      // m/s
+  clawSpeedZ: 0.19,
+  clawSpeedDown: 0.15,
+  clawSpeedUp: 0.22,
+  // 접촉 후에도 더 내려가는 양. 0 이면 닿는 즉시 정지하고, 이 경우 기법 B(눌러서
+  // 떨어뜨리기)가 물리적으로 불가능하다. 실제 기계도 관성 때문에 조금 더 눌린다.
+  descendOvertravel: 0.014,
+  clawTopY: 1.06,        // 집게 헤드 최상단 높이
+  // 하강 한계(실기처럼 고정 깊이). 벌린 발끝은 헤드보다 약 18cm 아래다.
+  // 이 집게는 마찰로 무는 게 아니라 발이 박스 "밑으로" 들어가 걷어 올리므로,
+  // 발끝이 2·3번 봉 윗면(=박스 바닥)보다 더 내려가야 한다. 봉이 있는 z 에서는
+  // 발이 봉에 닿아 먼저 멈추고, 2–3번 틈 위에서만 이 깊이까지 내려간다.
+  clawMinY: 0.720,
+  homeX: 0.33,           // 홈 = 가장 오른쪽 (벌린 발끝이 옆 유리에 닿지 않는 한계)
+  homeZ: 0.16,           // 1번 봉 위. 여기서 출발하고 여기로 복귀한다
+  limitX: 0.33,          // cabW(0.50) - 벌렸을 때 발끝 도달거리(약 0.156) - 여유
+  limitZfront: 0.32,
+  limitZback: -0.185,     // 4번 봉 뒤 진열대에는 못 간다
+
+  // ---- grip 실패 확률 ----
+  gripFailBase: 0.82,    // 파지 품질이 0일 때의 실패 확률
+  gripFailMin: 0.30,     // 완벽하게 잡았을 때의 실패 확률
+  gripEdgeMargin: 0.016, // 발가락이 박스 밑으로 파고들 수 있는 최대 깊이(약 1.6cm)에 맞춘 판정 스케일
+
+  // ---- 기구/월드 ----
+  cabW: 0.50,            // 캐비닛 반폭 |x|
+  // 앞 유리와 1번 봉 사이 간격 = boxW + frontGap.
+  // 박스가 여기 빠지면 껴서 회수하기 어렵다 (실수했을 때의 벌칙).
+  frontGap: 0.020,
+  cabDback: 0.62,        // 뒤쪽 깊이 (4번 봉 뒤 진열대 포함)
+  shelfDrop: 0.10,       // 봉(2·3번) 대비 바깥 바닥판이 낮은 양
+  chuteDrop: 0.45,       // 상품 출구 바닥 깊이
+  displayCount: 5,       // 4번 봉 뒤 진열대에 올릴 장식용 피규어 박스 개수
+  gravity: -9.81,
+  subSteps: 2,           // 프레임당 물리 스텝 (timestep = 1/120)
+  solverIters: 8,
+};
+
+/** 앞 유리 위치 (1번 봉 표면에서 boxW + frontGap 만큼 앞) */
+function cabDepthFront(cfg) {
+  return cfg.barOuterZ + cfg.barRadius + cfg.boxW + cfg.frontGap;
+}
+
+// UI 패널 생성용 스키마
+const SCHEMA = [
+  { group: '마찰 (핵심)', items: [
+    ['frictionRubber', '2·3번 봉 마찰(고무)', 0.05, 3.0, 0.05],
+    ['frictionSlick',  '1·4번 봉 마찰(미끄럼)', 0.0, 1.0, 0.005],
+    ['frictionBox',    '박스 표면 마찰', 0.05, 2.0, 0.05],
+    ['frictionClaw',   '집게 발 마찰', 0.05, 2.0, 0.05],
+    ['frictionFloor',  '바닥판 마찰', 0.05, 2.0, 0.05],
+  ]},
+  { group: '봉 배치', items: [
+    ['barGapZ',   '2–3번 봉 간격', 0.10, 0.30, 0.002],
+    ['barOuterZ', '1·4번 봉 위치 |z|', 0.11, 0.38, 0.005],
+    ['barRaise',  '1·4번 봉 높이차', 0.0, 0.25, 0.005],
+    ['barRadius', '봉 반지름', 0.004, 0.02, 0.001],
+    ['frontGap',  '앞 유리 여유(박스폭 대비)', 0.0, 0.15, 0.005],
+  ]},
+  { group: '상품 박스', items: [
+    ['boxW', '가로(X, 봉과 평행)', 0.05, 0.34, 0.005],
+    ['boxH', '세로(Y, 높이)', 0.05, 0.35, 0.005],
+    ['boxD', '깊이(Z, 봉과 수직)', 0.08, 0.40, 0.005],
+    ['boxMass', '질량(kg)', 0.05, 3.0, 0.01],
+    ['boxAngDamp', '회전 감쇠', 0.0, 2.0, 0.05],
+    ['boxLinDamp', '이동 감쇠', 0.0, 2.0, 0.05],
+  ]},
+  { group: '종이 찌그러짐', items: [
+    ['paperDent',    '최대 눌림 깊이', 0.0, 0.05, 0.001],
+    ['paperRadius',  '눌림 반경', 0.01, 0.15, 0.005],
+    ['paperAttack',  '눌리는 시정수', 0.01, 0.4, 0.01],
+    ['paperRecover', '복원 시정수', 0.02, 2.0, 0.02],
+  ]},
+  { group: '집게', items: [
+    ['clawGripTorque', '파지 토크(N·m)', 0.05, 4.0, 0.02],
+    ['clawSlipTorque', '실패 시 토크', 0.0, 1.5, 0.02],
+    ['clawSlipSpread', '실패 시 벌어짐(rad)', 0.0, 1.0, 0.02],
+    ['clawSlipDelay',  '실패 발현 지연(s)', 0.0, 2.0, 0.05],
+    ['clawGripDamping', '파지 감쇠', 0, 3, 0.05],
+    ['clawOpenSpread',  '벌림각 — 열림(rad)', 0.1, 1.3, 0.01],
+    ['clawCloseSpread', '벌림각 — 닫힘(rad)', 0.0, 0.8, 0.01],
+    ['clawPivotX',   '발 축 간격 |x|', 0.03, 0.18, 0.005],
+    ['clawArmLen',   '발 길이', 0.06, 0.28, 0.005],
+    ['clawTipThick', '발끝 두께(절반)', 0.002, 0.03, 0.001],
+    ['clawTipWidth', '발끝 폭(절반)', 0.005, 0.06, 0.001],
+    ['clawTipLen',   '발끝 길이(절반)', 0.008, 0.06, 0.001],
+    ['clawFingerMass', '발 질량(kg)', 0.02, 1.0, 0.01],
+    ['clawMotorSpeed', '개폐 속도', 0.5, 15, 0.1],
+  ]},
+  { group: 'grip 실패 확률', items: [
+    ['gripFailBase', '최악 파지 실패율', 0, 1, 0.01],
+    ['gripFailMin',  '최선 파지 실패율', 0, 1, 0.01],
+    ['gripEdgeMargin', '파지 깊이 판정 스케일', 0.004, 0.06, 0.001],
+  ]},
+  { group: '집게 이동', items: [
+    ['clawSpeedX', '좌우 속도', 0.05, 1.0, 0.01],
+    ['clawSpeedZ', '전후 속도', 0.05, 1.0, 0.01],
+    ['clawSpeedDown', '하강 속도', 0.05, 1.0, 0.01],
+    ['clawSpeedUp', '상승 속도', 0.05, 1.0, 0.01],
+    ['clawMinY', '하강 한계(헤드 y)', 0.55, 0.95, 0.005],
+    ['descendOvertravel', '접촉 후 추가 하강(누름)', 0.0, 0.08, 0.002],
+    ['homeX', '홈 위치 x', -0.45, 0.45, 0.01],
+    ['homeZ', '홈 위치 z', -0.34, 0.34, 0.01],
+  ]},
+  { group: '월드', items: [
+    ['displayCount', '뒤 진열대 피규어 수', 0, 9, 1],
+    ['gravity', '중력', -25, -1, 0.1],
+    ['subSteps', '프레임당 물리 스텝', 1, 4, 1],
+    ['solverIters', '솔버 반복', 2, 20, 1],
+  ]},
+];
+
+const KEY = 'ufo-catcher-cfg-v4';
+
+function loadConfig() {
+  const cfg = { ...DEFAULTS };
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) Object.assign(cfg, JSON.parse(raw));
+  } catch (e) { /* 저장소 접근 불가 시 기본값 */ }
+  return cfg;
+}
+
+function saveConfig(cfg) {
+  try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {}
+}
+
+function clearConfig() {
+  try { localStorage.removeItem(KEY); } catch (e) {}
+}
+
+
+// ===== src/physics.js =====
+
+
+async function initRapier() {
+  await RAPIER.init();
+  return RAPIER;
+}
+
+function createWorld(cfg) {
+  const world = new RAPIER.World({ x: 0, y: cfg.gravity, z: 0 });
+  world.timestep = 1 / 120;
+  if ('numSolverIterations' in world) world.numSolverIterations = cfg.solverIters;
+  return world;
+}
+
+/** 봉처럼 X축 방향으로 눕힌 실린더용 쿼터니언 */
+function cylinderAlongX() {
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+  return { x: q.x, y: q.y, z: q.z, w: q.w };
+}
+
+/** Rapier 디버그 와이어프레임 */
+class DebugLines {
+  constructor(scene) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(0), 4));
+    const mat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthTest: false });
+    this.mesh = new THREE.LineSegments(geo, mat);
+    this.mesh.visible = false;
+    this.mesh.renderOrder = 999;
+    scene.add(this.mesh);
+  }
+  set visible(v) { this.mesh.visible = v; }
+  get visible() { return this.mesh.visible; }
+  update(world) {
+    if (!this.mesh.visible) return;
+    const { vertices, colors } = world.debugRender();
+    this.mesh.geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    this.mesh.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
+  }
+}
+
+/** Rapier 강체 → three 메쉬 동기화 */
+function syncMesh(mesh, body) {
+  const t = body.translation();
+  const r = body.rotation();
+  mesh.position.set(t.x, t.y, t.z);
+  mesh.quaternion.set(r.x, r.y, r.z, r.w);
+}
+
+
+// ===== src/orbitcam.js =====
+
+
+/**
+ * 최소 궤도 카메라.
+ * three 의 OrbitControls 는 내부에서 bare specifier('three')를 import 하기 때문에
+ * importmap 이 필요하다. 단일 파일 배포본에서 importmap 없이 돌리려고 직접 만든다.
+ *
+ * 좌드래그 = 회전, 휠 = 줌, 우드래그/Shift+드래그 = 팬.
+ */
+class OrbitCam {
+  constructor(camera, dom) {
+    this.camera = camera;
+    this.dom = dom;
+    this.target = new THREE.Vector3();
+
+    this.minDistance = 0.35;
+    this.maxDistance = 4.0;
+    this.minPolar = 0.05;
+    this.maxPolar = Math.PI - 0.05;
+    this.damping = 0.12;
+
+    this.sph = new THREE.Spherical();
+    this.sphGoal = new THREE.Spherical();
+    this.targetGoal = new THREE.Vector3();
+
+    this._drag = null;
+    this._v = new THREE.Vector3();
+    this._offset = new THREE.Vector3();
+
+    dom.style.touchAction = 'none';
+    dom.addEventListener('pointerdown', (e) => this.onDown(e));
+    dom.addEventListener('pointermove', (e) => this.onMove(e));
+    dom.addEventListener('pointerup', (e) => this.onUp(e));
+    dom.addEventListener('pointercancel', (e) => this.onUp(e));
+    dom.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+    dom.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    this.sync();
+  }
+
+  /** 현재 카메라/타깃 위치를 내부 상태로 흡수 (외부에서 position 을 바꾼 뒤 호출) */
+  sync() {
+    this._offset.copy(this.camera.position).sub(this.target);
+    this.sph.setFromVector3(this._offset);
+    this.sphGoal.copy(this.sph);
+    this.targetGoal.copy(this.target);
+  }
+
+  onDown(e) {
+    if (e.button === 2 || e.shiftKey) this._drag = { mode: 'pan', x: e.clientX, y: e.clientY };
+    else this._drag = { mode: 'orbit', x: e.clientX, y: e.clientY };
+    this.dom.setPointerCapture(e.pointerId);
+  }
+
+  onUp(e) {
+    this._drag = null;
+    try { this.dom.releasePointerCapture(e.pointerId); } catch (err) { /* 이미 해제됨 */ }
+  }
+
+  onMove(e) {
+    if (!this._drag) return;
+    const dx = e.clientX - this._drag.x;
+    const dy = e.clientY - this._drag.y;
+    this._drag.x = e.clientX;
+    this._drag.y = e.clientY;
+    const h = this.dom.clientHeight || 1;
+
+    if (this._drag.mode === 'orbit') {
+      this.sphGoal.theta -= (dx / h) * Math.PI * 1.4;
+      this.sphGoal.phi -= (dy / h) * Math.PI * 1.4;
+      this.sphGoal.phi = Math.max(this.minPolar, Math.min(this.maxPolar, this.sphGoal.phi));
+    } else {
+      const scale = (this.sphGoal.radius * 1.2) / h;
+      const right = this._v.setFromMatrixColumn(this.camera.matrix, 0).multiplyScalar(-dx * scale);
+      this.targetGoal.add(right);
+      const up = this._v.setFromMatrixColumn(this.camera.matrix, 1).multiplyScalar(dy * scale);
+      this.targetGoal.add(up);
+    }
+  }
+
+  onWheel(e) {
+    e.preventDefault();
+    const k = Math.exp(e.deltaY * 0.0011);
+    this.sphGoal.radius = Math.max(this.minDistance, Math.min(this.maxDistance, this.sphGoal.radius * k));
+  }
+
+  /** 외부에서 카메라 위치를 지정할 때 사용 (뷰 프리셋) */
+  setView(position, target) {
+    this.camera.position.copy(position);
+    this.target.copy(target);
+    this.sync();
+  }
+
+  update() {
+    const k = this.damping;
+    this.sph.theta += (this.sphGoal.theta - this.sph.theta) * k;
+    this.sph.phi += (this.sphGoal.phi - this.sph.phi) * k;
+    this.sph.radius += (this.sphGoal.radius - this.sph.radius) * k;
+    this.target.lerp(this.targetGoal, k);
+
+    this._offset.setFromSpherical(this.sph);
+    this.camera.position.copy(this.target).add(this._offset);
+    this.camera.lookAt(this.target);
+  }
+}
+
+
+// ===== src/paperbox.js =====
+
+
+/**
+ * 빳빳한 종이 상자의 "눌리면 들어갔다가 되돌아오는" 변형.
+ *
+ * 물리 형상은 강체 직육면체 그대로 두고(안정성·예측 가능성 유지), 메쉬 정점만
+ * 눌린 지점 주변에서 법선 방향으로 밀어 넣는다. 힘이 사라지면 지수적으로 복원된다.
+ *
+ * 누르는 지점(presser)은 집게 발끝/헤드/닿아 있는 봉의 위치에서 기하적으로 구한다.
+ * 접촉력을 직접 쓰지 않으므로 물리 엔진 버전에 의존하지 않는다.
+ */
+class PaperDeform {
+  constructor(mesh, half, cfg) {
+    this.mesh = mesh;
+    this.half = half;
+    this.cfg = cfg;
+
+    const g = mesh.geometry;
+    this.pos = g.attributes.position;
+    this.nrm = g.attributes.normal;
+    this.count = this.pos.count;
+    this.base = new Float32Array(this.pos.array);      // 원본 정점
+    this.baseN = new Float32Array(this.nrm.array);     // 원본 법선
+    this.dent = new Float32Array(this.count);          // 현재 눌림량
+    this.target = new Float32Array(this.count);        // 이번 프레임 목표 눌림량
+
+    this._p = new THREE.Vector3();
+    this._v = new THREE.Vector3();
+    this._q = new THREE.Quaternion();
+  }
+
+  /**
+   * @param dt          초
+   * @param bodyPos     박스 월드 위치 {x,y,z}
+   * @param bodyRot     박스 월드 회전 {x,y,z,w}
+   * @param pressers    [{ point: THREE.Vector3(월드), strength: 0~1 }]
+   */
+  update(dt, bodyPos, bodyRot, pressers) {
+    const cfg = this.cfg;
+    const maxDent = cfg.paperDent;
+    const R = cfg.paperRadius;
+    this.target.fill(0);
+
+    if (maxDent > 0 && pressers.length) {
+      const inv = this._q.set(bodyRot.x, bodyRot.y, bodyRot.z, bodyRot.w).invert();
+      const origin = this._v.set(bodyPos.x, bodyPos.y, bodyPos.z);
+
+      for (const pr of pressers) {
+        if (pr.strength <= 0.01) continue;
+        // 월드 → 박스 로컬
+        const lp = pr.point.clone().sub(origin).applyQuaternion(inv);
+        // 박스 표면으로 투영 (가장 가까운 면 기준)
+        const surf = this.projectToSurface(lp);
+        if (!surf) continue;
+        const amt = maxDent * Math.min(1, pr.strength);
+
+        for (let i = 0; i < this.count; i++) {
+          const bx = this.base[i * 3], by = this.base[i * 3 + 1], bz = this.base[i * 3 + 2];
+          const dx = bx - surf.x, dy = by - surf.y, dz = bz - surf.z;
+          const d2 = dx * dx + dy * dy + dz * dz;
+          if (d2 > R * R) continue;
+          // 눌린 면과 같은 방향의 정점만 (반대쪽 면이 딸려 들어가지 않게)
+          const nx = this.baseN[i * 3], ny = this.baseN[i * 3 + 1], nz = this.baseN[i * 3 + 2];
+          const facing = nx * surf.nx + ny * surf.ny + nz * surf.nz;
+          if (facing < 0.35) continue;
+          const t = Math.sqrt(d2) / R;
+          const fall = Math.cos(t * Math.PI * 0.5) ** 2;   // 부드러운 감쇠
+          const v = amt * fall * facing;
+          if (v > this.target[i]) this.target[i] = v;
+        }
+      }
+    }
+
+    // 눌릴 때는 빠르게, 되돌아올 때는 천천히
+    const kA = 1 - Math.exp(-dt / Math.max(0.005, cfg.paperAttack));
+    const kR = 1 - Math.exp(-dt / Math.max(0.005, cfg.paperRecover));
+    let dirty = false;
+    for (let i = 0; i < this.count; i++) {
+      const tgt = this.target[i];
+      const k = tgt > this.dent[i] ? kA : kR;
+      const next = this.dent[i] + (tgt - this.dent[i]) * k;
+      if (Math.abs(next - this.dent[i]) > 1e-6 || next > 1e-6) dirty = true;
+      this.dent[i] = next;
+    }
+    if (!dirty && !this.wasDirty) return;
+    this.wasDirty = dirty;
+
+    // 정점 = 원본 - 법선 * 눌림량
+    const arr = this.pos.array;
+    for (let i = 0; i < this.count; i++) {
+      const d = this.dent[i];
+      arr[i * 3]     = this.base[i * 3]     - this.baseN[i * 3]     * d;
+      arr[i * 3 + 1] = this.base[i * 3 + 1] - this.baseN[i * 3 + 1] * d;
+      arr[i * 3 + 2] = this.base[i * 3 + 2] - this.baseN[i * 3 + 2] * d;
+    }
+    this.pos.needsUpdate = true;
+    this.mesh.geometry.computeVertexNormals();
+  }
+
+  /** 로컬 점을 박스의 가장 가까운 면으로 투영. 면에서 너무 멀면 null. */
+  projectToSurface(lp) {
+    const h = this.half;
+    const skin = 0.025; // 이 거리 안쪽/바깥쪽이면 "누르고 있다"고 본다
+    const dx = h.x - Math.abs(lp.x);
+    const dy = h.y - Math.abs(lp.y);
+    const dz = h.z - Math.abs(lp.z);
+    if (dx < -skin || dy < -skin || dz < -skin) return null;
+
+    // 가장 얕은 축 = 그 면
+    let axis = 0, m = dx;
+    if (dy < m) { axis = 1; m = dy; }
+    if (dz < m) { axis = 2; m = dz; }
+    if (m > skin) return null; // 박스 한가운데 = 표면을 누르는 게 아님
+
+    const out = { x: lp.x, y: lp.y, z: lp.z, nx: 0, ny: 0, nz: 0 };
+    if (axis === 0) { const s = Math.sign(lp.x) || 1; out.x = s * h.x; out.nx = s; }
+    if (axis === 1) { const s = Math.sign(lp.y) || 1; out.y = s * h.y; out.ny = s; }
+    if (axis === 2) { const s = Math.sign(lp.z) || 1; out.z = s * h.z; out.nz = s; }
+    // 면 안쪽으로 클램프
+    out.x = Math.max(-h.x, Math.min(h.x, out.x));
+    out.y = Math.max(-h.y, Math.min(h.y, out.y));
+    out.z = Math.max(-h.z, Math.min(h.z, out.z));
+    return out;
+  }
+}
+
+/** 빳빳한 종이 느낌의 상품 박스 메쉬 */
+function makePaperBoxMesh(cfg) {
+  // 눌림이 보이려면 면 분할이 필요하다
+  const seg = (len) => Math.max(4, Math.min(14, Math.round(len / 0.018)));
+  const geo = new THREE.BoxGeometry(
+    cfg.boxW, cfg.boxH, cfg.boxD,
+    seg(cfg.boxW), seg(cfg.boxH), seg(cfg.boxD)
+  );
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xe05a52,       // 인쇄된 판지
+    roughness: 0.94,
+    metalness: 0.0,
+    flatShading: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  // 포장 띠 (변형과 무관한 별도 메쉬)
+  const band = new THREE.Mesh(
+    new THREE.BoxGeometry(cfg.boxW * 1.004, cfg.boxH * 0.15, cfg.boxD * 1.004),
+    new THREE.MeshStandardMaterial({ color: 0xf1c40f, roughness: 0.9, metalness: 0.0 })
+  );
+  band.position.y = cfg.boxH * 0.28;
+  mesh.add(band);
+  return mesh;
+}
+
+
+// ===== src/machine.js =====
+
+
+/**
+ * 봉 4개의 배치.
+ * 1번이 플레이어(카메라, +Z)에 가장 가깝다.
+ *  - 2·3번: 낮음 + 고무 코팅(마찰 큼)
+ *  - 1·4번: 높음 + 코팅 없음(미끄러움) → 박스가 걸치면 쉽게 피벗 회전
+ */
+function barLayout(cfg) {
+  return [
+    { n: 1, z: +cfg.barOuterZ,   y: cfg.barLowY + cfg.barRaise, mu: cfg.frictionSlick,  slick: true },
+    { n: 2, z: +cfg.barGapZ / 2, y: cfg.barLowY,                mu: cfg.frictionRubber, slick: false },
+    { n: 3, z: -cfg.barGapZ / 2, y: cfg.barLowY,                mu: cfg.frictionRubber, slick: false },
+    { n: 4, z: -cfg.barOuterZ,   y: cfg.barLowY + cfg.barRaise, mu: cfg.frictionSlick,  slick: true },
+  ];
+}
+
+/** 2–3번 봉 사이 "열린 틈"의 실제 반폭 (봉 표면 기준) */
+function slotHalfWidth(cfg) {
+  return cfg.barGapZ / 2 - cfg.barRadius;
+}
+
+const MUL = () => RAPIER.CoefficientCombineRule.Multiply;
+
+class Machine {
+  constructor(world, scene, cfg) {
+    this.world = world;
+    this.scene = scene;
+    this.cfg = cfg;
+    this.bodies = [];
+    this.barColliders = new Map(); // collider.handle -> 봉 번호
+    this.group = new THREE.Group();
+    scene.add(this.group);
+    this.build();
+  }
+
+  build() {
+    const cfg = this.cfg;
+    const bars = barLayout(cfg);
+    this.bars = bars;
+
+    const shelfY = cfg.barLowY - cfg.shelfDrop;
+    const chuteY = cfg.barLowY - cfg.chuteDrop;
+    const slotHalf = slotHalfWidth(cfg);
+    const dFront = cabDepthFront(cfg);
+    const dBack = cfg.cabDback;
+    const bar4Back = cfg.barOuterZ + cfg.barRadius; // 4번 봉 뒤쪽 면
+    this.dFront = dFront;
+
+    // ---- 봉 4개 ----
+    const rot = cylinderAlongX();
+    const matRubber = new THREE.MeshStandardMaterial({ color: 0x23262c, roughness: 0.95, metalness: 0.05 });
+    const matSlick = new THREE.MeshStandardMaterial({ color: 0xd7dde6, roughness: 0.12, metalness: 0.95 });
+
+    for (const b of bars) {
+      const rb = this.world.createRigidBody(
+        RAPIER.RigidBodyDesc.fixed().setTranslation(0, b.y, b.z)
+      );
+      const col = this.world.createCollider(
+        RAPIER.ColliderDesc.cylinder(cfg.barLength / 2, cfg.barRadius)
+          .setRotation(rot)
+          .setFriction(b.mu)
+          .setFrictionCombineRule(MUL())
+          .setRestitution(0.0)
+          .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+        rb
+      );
+      this.barColliders.set(col.handle, b.n);
+      this.bodies.push(rb);
+
+      const geo = new THREE.CylinderGeometry(cfg.barRadius, cfg.barRadius, cfg.barLength, 20);
+      geo.rotateZ(Math.PI / 2);
+      const mesh = new THREE.Mesh(geo, b.slick ? matSlick : matRubber);
+      mesh.position.set(0, b.y, b.z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      this.group.add(mesh);
+
+      // 1·2번, 3·4번이 화면에서 겹치지 않게 라벨을 번갈아 밀어 둔다
+      const tag = makeLabel(String(b.n));
+      tag.position.set(cfg.barLength / 2 + 0.035 + (b.n % 2 ? 0.055 : 0), b.y + 0.02, b.z);
+      this.group.add(tag);
+    }
+
+    const matShelf = new THREE.MeshStandardMaterial({ color: 0x2e3440, roughness: 0.8, metalness: 0.15 });
+
+    // ---- 앞쪽 바닥판: 틈 가장자리 ~ 앞 유리 ----
+    // 1번 봉과 앞 유리 사이가 박스 가로보다 조금 넓어서, 박스가 여기 빠지면 낀다.
+    this.addBox(cfg.cabW, 0.01, (dFront - slotHalf) / 2, 0, shelfY, (slotHalf + dFront) / 2,
+      matShelf, cfg.frictionFloor);
+
+    // ---- 뒤쪽 바닥판: 틈 가장자리 ~ 4번 봉 뒤 ----
+    this.addBox(cfg.cabW, 0.01, (bar4Back - slotHalf) / 2, 0, shelfY, -(slotHalf + bar4Back) / 2,
+      matShelf, cfg.frictionFloor);
+
+    // ---- 4번 봉 뒤 진열대: 2·3번 봉 윗면과 같은 높이 ----
+    const dispTop = cfg.barLowY + cfg.barRadius;
+    const dispHalfD = (dBack - bar4Back) / 2;
+    this.addBox(cfg.cabW, 0.01, dispHalfD, 0, dispTop - 0.01, -(bar4Back + dBack) / 2,
+      new THREE.MeshStandardMaterial({ color: 0x333b49, roughness: 0.75 }), cfg.frictionFloor);
+    this.addDisplayPrizes(dispTop, bar4Back, dBack);
+
+    // ---- 상품 출구 바닥 ----
+    this.addBox(cfg.cabW, 0.01, (dFront + dBack) / 2, 0, chuteY, (dFront - dBack) / 2,
+      new THREE.MeshStandardMaterial({ color: 0x11141a, roughness: 1.0 }), 0.9);
+
+    // ---- 벽 ----
+    const glass = new THREE.MeshPhysicalMaterial({
+      color: 0xaee0ff, transparent: true, opacity: 0.10, roughness: 0.05,
+      metalness: 0.0, side: THREE.DoubleSide, depthWrite: false,
+    });
+    // 옆면도 반투명 — 측면 뷰에서 봉 단면과 박스 기울기를 관찰할 수 있어야 한다
+    const side = new THREE.MeshStandardMaterial({
+      color: 0x8fb6d6, transparent: true, opacity: 0.07, roughness: 0.3,
+      side: THREE.DoubleSide, depthWrite: false,
+    });
+    const wallTop = cfg.clawTopY + 0.10;
+    const wallH = (wallTop - chuteY) / 2;
+    const wallCY = (wallTop + chuteY) / 2;
+    const halfD = (dFront + dBack) / 2;
+    const midZ = (dFront - dBack) / 2;
+
+    this.addBox(0.01, wallH, halfD, -cfg.cabW, wallCY, midZ, side, 0.4);
+    this.addBox(0.01, wallH, halfD, +cfg.cabW, wallCY, midZ, side, 0.4);
+    this.addBox(cfg.cabW, wallH, 0.01, 0, wallCY, +dFront, glass, 0.3);   // 앞 유리
+    this.addBox(cfg.cabW, wallH, 0.01, 0, wallCY, -dBack, side, 0.3);     // 뒷벽
+
+    // ---- 틈(승리 통로) 하이라이트 ----
+    const slotGeo = new THREE.PlaneGeometry(cfg.barLength, slotHalf * 2);
+    slotGeo.rotateX(-Math.PI / 2);
+    const slot = new THREE.Mesh(slotGeo, new THREE.MeshBasicMaterial({
+      color: 0x35d07f, transparent: true, opacity: 0.13, side: THREE.DoubleSide,
+    }));
+    slot.position.set(0, chuteY + 0.004, 0);
+    this.group.add(slot);
+  }
+
+  /** 장식용 피규어 박스들 (직원이 리필해 두는 재고). 물리적으로는 고정. */
+  addDisplayPrizes(topY, zNear, zFar) {
+    const cfg = this.cfg;
+    const n = Math.max(0, Math.round(cfg.displayCount));
+    if (!n) return;
+    const palette = [0x4dabf7, 0xffd43b, 0x69db7c, 0xff8787, 0xb197fc, 0xffa94d];
+    const w = cfg.boxW * 0.9, h = cfg.boxH * 0.95, d = cfg.boxD * 0.85;
+    const usable = cfg.cabW * 2 - 0.06;
+    const step = Math.min(w + 0.02, usable / Math.max(1, n));
+    const z = -(zNear + Math.min(zFar - zNear - d / 2 - 0.02, d / 2 + 0.05));
+
+    for (let i = 0; i < n; i++) {
+      const x = (i - (n - 1) / 2) * step;
+      const mat = new THREE.MeshStandardMaterial({
+        color: palette[i % palette.length], roughness: 0.85, metalness: 0.0,
+      });
+      const mesh = this.addBox(w / 2, h / 2, d / 2, x, topY + h / 2, z, mat, 0.8);
+      // 앞면에 밝은 띠 — 상품 박스처럼 보이게
+      const band = new THREE.Mesh(
+        new THREE.BoxGeometry(w * 1.005, h * 0.16, d * 1.005),
+        new THREE.MeshStandardMaterial({ color: 0xf8f9fa, roughness: 0.9 })
+      );
+      band.position.y = h * 0.28;
+      mesh.add(band);
+    }
+  }
+
+  addBox(hx, hy, hz, x, y, z, material, friction) {
+    const rb = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z));
+    this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(hx, hy, hz).setFriction(friction).setRestitution(0.0), rb
+    );
+    this.bodies.push(rb);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2), material);
+    mesh.position.set(x, y, z);
+    mesh.receiveShadow = true;
+    mesh.castShadow = true;
+    this.group.add(mesh);
+    return mesh;
+  }
+
+  dispose() {
+    for (const b of this.bodies) this.world.removeRigidBody(b);
+    this.bodies.length = 0;
+    this.scene.remove(this.group);
+    this.group.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose());
+    });
+  }
+}
+
+function makeLabel(text) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#0b0e13';
+  g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#ffd166';
+  g.font = 'bold 44px sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, 32, 34);
+  const tex = new THREE.CanvasTexture(c);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  sp.scale.set(0.05, 0.05, 0.05);
+  return sp;
+}
+
+
+// ===== src/claw.js =====
+
+
+const ARM_HALF_X = 0.011; // 발(팔) 두께의 절반 — 발가락은 이 안쪽 면에 붙는다
+
+/**
+ * 집게.
+ *  - 헤드: kinematic (버튼 입력으로 위치를 직접 지정)
+ *  - 발 2개: dynamic 강체 + revolute 조인트 + 위치 모터
+ *  - 발끝: 납작한 판 (얇고 넓게) — 박스 위를 누르거나 옆면을 무는 부분
+ *
+ * 발은 X축(봉과 평행한 방향)으로 마주 보고 닫힌다.
+ * 회전축은 Z축이고, 상태는 "벌림각 spread" 하나로 표현한다:
+ *   spread = 0  → 두 발끝이 정중앙(x=0)에서 맞닿음
+ *   spread 증가 → 벌어짐
+ * 조인트 목표각 θ = sign * spread  (왼발 sign=-1, 오른발 sign=+1)
+ *
+ * 파지력은 "일정 토크"로 준다. 모터는 위치 제어뿐이라, 매 프레임
+ *   강성 = 토크 / |목표각 - 현재각|
+ * 으로 역산해 박스 폭이 달라져도 무는 힘이 일정하게 유지된다.
+ */
+class Claw {
+  constructor(world, scene, cfg) {
+    this.world = world;
+    this.scene = scene;
+    this.cfg = cfg;
+
+    this.pos = new THREE.Vector3(cfg.homeX, cfg.clawTopY, cfg.homeZ);
+    this.spread = cfg.clawCloseSpread;
+    this.targetSpread = cfg.clawCloseSpread;
+    this.torque = cfg.clawGripTorque;
+
+    this.group = new THREE.Group();
+    scene.add(this.group);
+    this.bodies = [];
+    this.myColliders = new Set();
+
+    this.build();
+  }
+
+  build() {
+    const cfg = this.cfg;
+    const p = this.pos;
+
+    const metal = new THREE.MeshStandardMaterial({ color: 0xc8ccd4, roughness: 0.28, metalness: 0.9 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x3a4150, roughness: 0.35, metalness: 0.75 });
+
+    // ---- 헤드 (kinematic) ----
+    this.head = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(p.x, p.y, p.z)
+    );
+    const headHalf = { x: cfg.clawPivotX + 0.026, y: 0.028, z: 0.038 };
+    this.headHalf = headHalf;
+    const hc = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(headHalf.x, headHalf.y, headHalf.z)
+        .setFriction(0.4)
+        .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+      this.head
+    );
+    this.myColliders.add(hc.handle);
+    this.bodies.push(this.head);
+
+    this.headMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(headHalf.x * 2, headHalf.y * 2, headHalf.z * 2), dark);
+    this.headMesh.castShadow = true;
+    this.group.add(this.headMesh);
+
+    this.rodMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.0, 12), metal);
+    this.group.add(this.rodMesh);
+
+    // ---- 발 2개 ----
+    const armLen = cfg.clawArmLen;
+    const tipThick = cfg.clawTipThick;
+    const tipWidth = cfg.clawTipWidth;
+    const tipY = -(armLen - tipThick);
+    // 발가락 안쪽 끝이 정중앙(x=0)을 넘지 않도록 제한
+    const tipHalf = Math.min(cfg.clawTipLen, (cfg.clawPivotX - ARM_HALF_X) / 2);
+    this.tipY = tipY;
+
+    this.fingers = [];
+    for (const sign of [-1, +1]) {
+      const px = sign * cfg.clawPivotX;
+      const body = this.world.createRigidBody(
+        RAPIER.RigidBodyDesc.dynamic()
+          .setTranslation(p.x + px, p.y, p.z)
+          .setCanSleep(false)
+          .setAngularDamping(0.7)
+      );
+
+      // 발가락은 발(팔)의 안쪽 면에 붙어서 안쪽으로 뻗는다.
+      // 바깥쪽 끝을 팔에 고정하므로, 길이를 줄이면 안쪽 도달 거리가 그만큼 짧아진다.
+      const tipX = -sign * (ARM_HALF_X + tipHalf);
+
+      const armCol = this.world.createCollider(
+        RAPIER.ColliderDesc.cuboid(ARM_HALF_X, armLen / 2, 0.018)
+          .setTranslation(0, -armLen / 2, 0)
+          .setMass(cfg.clawFingerMass * 0.7)
+          .setFriction(cfg.frictionClaw)
+          .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Multiply)
+          .setRestitution(0.0)
+          .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+        body
+      );
+      // 납작한 발끝 판
+      const tipCol = this.world.createCollider(
+        RAPIER.ColliderDesc.cuboid(tipHalf, tipThick, tipWidth)
+          .setTranslation(tipX, tipY, 0)
+          .setMass(cfg.clawFingerMass * 0.3)
+          .setFriction(cfg.frictionClaw)
+          .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Multiply)
+          .setRestitution(0.0)
+          .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+        body
+      );
+      this.myColliders.add(armCol.handle);
+      this.myColliders.add(tipCol.handle);
+      this.bodies.push(body);
+
+      const jd = RAPIER.JointData.revolute(
+        { x: px, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }
+      );
+      const joint = this.world.createImpulseJoint(jd, this.head, body, true);
+      if (typeof joint.setContactsEnabled === 'function') joint.setContactsEnabled(false);
+      if (typeof joint.configureMotorModel === 'function') {
+        joint.configureMotorModel(RAPIER.MotorModel.ForceBased);
+      }
+
+      // 메쉬
+      const g = new THREE.Group();
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(ARM_HALF_X * 2, armLen, 0.036), metal);
+      arm.position.set(0, -armLen / 2, 0);
+      arm.castShadow = true;
+      const tip = new THREE.Mesh(new THREE.BoxGeometry(tipHalf * 2, tipThick * 2, tipWidth * 2), dark);
+      tip.position.set(tipX, tipY, 0);
+      tip.castShadow = true;
+      g.add(arm, tip);
+      this.group.add(g);
+
+      this.fingers.push({
+        sign, body, joint, mesh: g,
+        // 발가락 안쪽 끝점 = 팔 안쪽 면 + 발가락 전체 길이
+        tipLocal: new THREE.Vector3(-sign * (ARM_HALF_X + tipHalf * 2), tipY, 0),
+        padLocal: new THREE.Vector3(tipX, tipY - tipThick, 0),        // 발끝 판 아랫면 중앙
+      });
+    }
+
+    this.applyMotor(true);
+  }
+
+  open() { this.targetSpread = this.cfg.clawOpenSpread; }
+  close() { this.targetSpread = this.cfg.clawCloseSpread; }
+  /** 파지 실패 — 모터가 버티지 못하고 발이 벌어진다 */
+  slip() { this.targetSpread = Math.max(this.targetSpread, this.cfg.clawSlipSpread); }
+  setGripTorque(t) { this.torque = t; }
+
+  /** 발의 실제 각도 (Z축 회전) */
+  angleOf(f) {
+    const r = f.body.rotation();
+    return Math.atan2(2 * (r.w * r.z), 1 - 2 * r.z * r.z);
+  }
+
+  applyMotor(snap = false) {
+    const cfg = this.cfg;
+    for (const f of this.fingers) {
+      const target = f.sign * this.spread;
+      const err = Math.abs(target - this.angleOf(f));
+      // 일정 토크 = 강성 × 오차  →  강성 = 토크 / 오차
+      const k = Math.min(cfg.clawMaxStiffness, this.torque / Math.max(0.03, err));
+      f.joint.configureMotorPosition(target, k, cfg.clawGripDamping);
+      f.motorError = err;
+      if (snap) {
+        const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), target);
+        f.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+      }
+    }
+  }
+
+  update(dt) {
+    const step = this.cfg.clawMotorSpeed * dt;
+    const d = this.targetSpread - this.spread;
+    this.spread += Math.max(-step, Math.min(step, d));
+    this.applyMotor();
+    this.head.setNextKinematicTranslation({ x: this.pos.x, y: this.pos.y, z: this.pos.z });
+  }
+
+  render() {
+    syncMesh(this.headMesh, this.head);
+    const t = this.head.translation();
+    this.rodMesh.position.set(t.x, t.y + 0.53, t.z);
+    for (const f of this.fingers) syncMesh(f.mesh, f.body);
+  }
+
+  toWorld(f, local) {
+    const t = f.body.translation();
+    const r = f.body.rotation();
+    return local.clone()
+      .applyQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w))
+      .add(new THREE.Vector3(t.x, t.y, t.z));
+  }
+
+  /** 발끝(안쪽 끝) 월드 좌표 */
+  tipWorld(f) { return this.toWorld(f, f.tipLocal); }
+
+  /**
+   * 종이 상자를 누르고 있는 지점들. paperbox.js 로 넘긴다.
+   * strength 는 발이 얼마나 힘을 쓰고 있는지(모터 오차)로 근사한다.
+   */
+  pressers(out = []) {
+    out.length = 0;
+    for (const f of this.fingers) {
+      const eff = Math.min(1, (f.motorError || 0) / 0.35);
+      if (eff < 0.02) continue;
+      // 발끝 판을 따라 세 점 — 납작한 면이 눌린 자국을 남기도록
+      for (const s of [-0.6, 0, 0.6]) {
+        const p = f.padLocal.clone();
+        p.z += s * this.cfg.clawTipWidth;
+        out.push({ point: this.toWorld(f, p), strength: eff });
+      }
+      out.push({ point: this.tipWorld(f), strength: eff });
+    }
+    return out;
+  }
+
+  /**
+   * 파지 품질 0~1.
+   *
+   * 이 기계의 집게는 마찰로 옆면을 "무는" 것이 아니라, 납작한 발이 박스 **밑으로
+   * 들어가 걷어 올리는** 방식이다. 따라서 품질은
+   *   ① 발끝이 박스 바닥면보다 아래에 있는가 (밑으로 파고들었는가)
+   *   ② 바닥면 안쪽으로 얼마나 깊이 들어갔는가 (모서리만 걸치면 낮음)
+   * 로 정한다.
+   */
+  gripQuality(boxBody, half) {
+    const bt = boxBody.translation();
+    const br = boxBody.rotation();
+    const inv = new THREE.Quaternion(br.x, br.y, br.z, br.w).invert();
+    const origin = new THREE.Vector3(bt.x, bt.y, bt.z);
+    const m = Math.max(1e-4, this.cfg.gripEdgeMargin);
+
+    const q = this.fingers.map((f) => {
+      const local = this.tipWorld(f).sub(origin).applyQuaternion(inv);
+      // ① 바닥면보다 아래여야 걷어 올릴 수 있다 (약간의 여유 허용)
+      const under = (-local.y) - half.y;
+      if (under < -0.006) return 0;
+      // ② 바닥면 안쪽으로 파고든 깊이
+      const inX = half.x - Math.abs(local.x);
+      const inZ = half.z - Math.abs(local.z);
+      if (inX <= 0 || inZ <= 0) return 0;       // 발이 바닥 밑까지 안 들어옴
+      return Math.min(1, Math.min(inX, inZ) / m);
+    });
+
+    return Math.sqrt(Math.max(0, q[0]) * Math.max(0, q[1]));
+  }
+
+  isMine(handle) { return this.myColliders.has(handle); }
+
+  teleport(x, y, z) {
+    this.pos.set(x, y, z);
+    this.head.setTranslation({ x, y, z }, true);
+    for (const f of this.fingers) {
+      f.body.setTranslation({ x: x + f.sign * this.cfg.clawPivotX, y, z }, true);
+      f.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      f.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    }
+    this.applyMotor(true);
+  }
+
+  dispose() {
+    for (const b of this.bodies) this.world.removeRigidBody(b);
+    this.bodies.length = 0;
+    this.scene.remove(this.group);
+    this.group.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((mm) => mm.dispose());
+    });
+  }
+}
+
+
+// ===== src/game.js =====
+
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+const STATE = {
+  IDLE: '대기 — 이동 버튼으로 플레이 시작',
+  AIM_X: '좌우 이동 중 (버튼을 놓으면 정지)',
+  AIM_X_DONE: '좌우 정지 — 전진 버튼을 누르세요',
+  AIM_Z: '전진 중 (버튼을 놓으면 하강)',
+  AIM_FREE: '자유 조작 — 이동/전진 반복 가능, 정지 버튼으로 하강',
+  DESCEND: '하강 중 — 정지 버튼 / 접촉 시 자동 정지',
+  CLOSE: '집게 오므리는 중',
+  LIFT: '들어올리는 중',
+  RELEASE: '집게 벌리는 중',
+  RETURN: '시작점으로 복귀 중',
+  WIN: '성공! 상품이 틈으로 낙하',
+};
+
+class Game {
+  constructor(world, scene, cfg) {
+    this.world = world;
+    this.scene = scene;
+    this.cfg = cfg;
+
+    this.machine = new Machine(world, scene, cfg);
+    this.claw = new Claw(world, scene, cfg);
+
+    this.boxBody = null;
+    this.boxMesh = null;
+    this.clawBoxPairs = new Set();   // 집게↔박스 활성 접촉
+    this.boxBarPairs = new Map();    // 박스↔봉 활성 접촉 (colliderHandle → 봉 번호)
+    this.createBox();
+
+    this.state = 'IDLE';
+    this.timer = 0;
+    this.freeMode = false;      // true 면 좌우/전진을 몇 번이든 다시 조작 가능
+    this.axisEngaged = false;
+    this.dirX = -1;             // 홈이 가장 오른쪽이므로 왼쪽(-X)으로 진행
+    this.dirZ = -1;             // 앞(+Z)에서 뒤(-Z)로 진행
+    this.btn = { move: false, fwd: false, stop: false };
+    this.prevBtn = { move: false, fwd: false, stop: false };
+    this.lastGrip = { quality: 0, failP: 0, roll: 0, failed: false };
+    this.contactStop = false;
+    this.pressUntil = null;
+    this.stopReason = '';
+    this.attempts = 0;
+    this.wins = 0;
+    this.onStateChange = () => {};
+  }
+
+  // ---------------------------------------------------------------- 상품 박스
+
+  createBox(pose = null) {
+    const cfg = this.cfg;
+    if (this.boxBody) { this.world.removeRigidBody(this.boxBody); this.boxBody = null; }
+    if (this.boxMesh) {
+      this.scene.remove(this.boxMesh);
+      this.boxMesh.geometry.dispose();
+      this.boxMesh.material.dispose();
+    }
+
+    this.clawBoxPairs = new Set();
+    this.boxBarPairs = new Map();
+
+    const half = { x: cfg.boxW / 2, y: cfg.boxH / 2, z: cfg.boxD / 2 };
+    this.boxHalf = half;
+
+    const p = pose || this.defaultPose();
+    const desc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(p.x, p.y, p.z)
+      .setLinearDamping(cfg.boxLinDamp)
+      .setAngularDamping(cfg.boxAngDamp)
+      .setCcdEnabled(true);
+    if (p.q) desc.setRotation(p.q);
+    this.boxBody = this.world.createRigidBody(desc);
+
+    const density = cfg.boxMass / (cfg.boxW * cfg.boxH * cfg.boxD);
+    this.boxCollider = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(half.x, half.y, half.z)
+        .setDensity(density)
+        .setFriction(cfg.frictionBox)
+        .setRestitution(cfg.boxRestitution)
+        .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+      this.boxBody
+    );
+
+    // 빳빳한 종이 상자 — 눌린 자국이 보이도록 분할된 메쉬
+    const mesh = makePaperBoxMesh(cfg);
+    this.scene.add(mesh);
+    this.boxMesh = mesh;
+    this.paper = new PaperDeform(mesh, half, cfg);
+    this._pressers = [];
+  }
+
+  /** 시작 자세: 25cm 변이 봉과 수직이 되도록 2–3번 봉 위에 걸침 */
+  defaultPose() {
+    const cfg = this.cfg;
+    return { x: 0, y: cfg.barLowY + cfg.barRadius + cfg.boxH / 2 + 0.002, z: 0, q: null };
+  }
+
+  /** 1번 또는 4번 봉 위에 걸쳐 놓기 (기법 A/B 테스트용) */
+  poseOnOuterBar(which) {
+    const cfg = this.cfg;
+    const bar = barLayout(cfg).find((b) => b.n === which);
+    // 무게중심을 봉보다 살짝 안쪽(틈 방향)에 두면 안쪽으로 기울며 1+2번(또는 4+3번)
+    // 봉에 걸친 자세로 안착한다 — 기법 A/B 의 출발 자세.
+    return {
+      x: 0,
+      y: bar.y + cfg.barRadius + cfg.boxH / 2 + 0.004,
+      z: bar.z - Math.sign(bar.z) * 0.02,
+      q: null,
+    };
+  }
+
+  resetBox(pose = null) {
+    this.createBox(pose);
+  }
+
+  // ---------------------------------------------------------------- 플레이 흐름
+
+  /**
+   * 플레이 1회 시작.
+   * ─ 0단계에서는 무제한. 이후 코인/광고 단계를 넣을 지점은 딱 여기 한 곳이다.
+   *   예)  if (!wallet.trySpend(1)) { ui.showNeedCoin(); return false; }
+   */
+  startPlay() {
+    if (this.state !== 'IDLE') return false;
+    this.attempts++;
+    if (!this.clawTouchingBox()) this.claw.close();  // 박스가 얹혀 있으면 벌린 채로 시작
+    this.claw.setGripTorque(this.cfg.clawGripTorque);
+    this.setState('AIM_X');
+    return true;
+  }
+
+  /** 집게를 벌리고 자동 하강 시작 */
+  beginDescend() {
+    this.claw.open();
+    this.contactStop = false;
+    this.pressUntil = null;
+    this.setState('DESCEND');
+  }
+
+  setState(s) {
+    this.state = s;
+    this.timer = 0;
+    this.onStateChange(s);
+  }
+
+  setButtons(b) {
+    this.prevBtn = { ...this.btn };
+    this.btn = { ...b };
+  }
+
+  pressed(name) { return this.btn[name] && !this.prevBtn[name]; }
+  released(name) { return !this.btn[name] && this.prevBtn[name]; }
+
+  /**
+   * 접촉 이벤트 처리 (main 루프의 이벤트 큐에서 호출).
+   * 실제 접촉 시작/종료만 오므로 브로드페이즈 오탐이 없다.
+   */
+  onCollision(h1, h2, started) {
+    const bh = this.boxCollider.handle;
+    const mine1 = this.claw.isMine(h1), mine2 = this.claw.isMine(h2);
+
+    // 박스 ↔ 집게
+    if ((mine1 && h2 === bh) || (mine2 && h1 === bh)) {
+      const key = `${Math.min(h1, h2)}|${Math.max(h1, h2)}`;
+      if (started) this.clawBoxPairs.add(key); else this.clawBoxPairs.delete(key);
+    }
+    // 박스 ↔ 봉
+    for (const [a, b] of [[h1, h2], [h2, h1]]) {
+      if (a !== bh) continue;
+      const n = this.machine.barColliders.get(b);
+      if (!n) continue;
+      if (started) this.boxBarPairs.set(b, n); else this.boxBarPairs.delete(b);
+    }
+
+    // 하강 중 집게가 무언가에 닿으면 자동 정지
+    if (started && mine1 !== mine2 && this.state === 'DESCEND') this.contactStop = true;
+  }
+
+  update(dt) {
+    const cfg = this.cfg;
+    const claw = this.claw;
+    this.timer += dt;
+
+    switch (this.state) {
+      case 'IDLE':
+        if (this.pressed('move')) this.startPlay();
+        break;
+
+      // ① 좌우 버튼: 누르는 동안 X(봉과 평행) 이동, 떼면 그 자리에서 정지
+      case 'AIM_X':
+        if (this.btn.move) {
+          this.axisEngaged = true;
+          claw.pos.x = clamp(claw.pos.x + this.dirX * cfg.clawSpeedX * dt, -cfg.limitX, cfg.limitX);
+        } else if (this.axisEngaged) {
+          this.axisEngaged = false;
+          if (this.freeMode) { this.dirX *= -1; this.setState('AIM_FREE'); }
+          else this.setState('AIM_X_DONE');
+        }
+        break;
+
+      case 'AIM_X_DONE':
+        if (this.pressed('fwd')) this.setState('AIM_Z');
+        break;
+
+      // ② 전진 버튼: 누르는 동안 Z(봉과 수직) 이동, 떼면 벌어지며 자동 하강
+      case 'AIM_Z':
+        if (this.btn.fwd) {
+          this.axisEngaged = true;
+          claw.pos.z = clamp(claw.pos.z + this.dirZ * cfg.clawSpeedZ * dt, cfg.limitZback, cfg.limitZfront);
+        } else if (this.axisEngaged) {
+          this.axisEngaged = false;
+          if (this.freeMode) { this.dirZ *= -1; this.setState('AIM_FREE'); }
+          else { this.beginDescend(); }
+        }
+        break;
+
+      // 자유 조작 모드: 좌우/전진을 몇 번이든 다시 조작, 정지 버튼으로 하강 시작
+      case 'AIM_FREE':
+        if (this.pressed('move')) { this.setState('AIM_X'); break; }
+        if (this.pressed('fwd')) { this.setState('AIM_Z'); break; }
+        if (this.pressed('stop')) {
+          this.beginDescend();
+        }
+        break;
+
+      case 'DESCEND': {
+        claw.pos.y = Math.max(cfg.clawMinY, claw.pos.y - cfg.clawSpeedDown * dt);
+        const bottom = claw.pos.y <= cfg.clawMinY + 1e-6;
+        const stopBtn = this.pressed('stop');
+        // 발이 벌어지기 전(0.15초)엔 접촉 정지를 무시해 헛정지 방지
+        const touched = this.contactStop && this.timer > 0.15;
+
+        // 접촉하면 곧바로 멈추지 않고 overtravel 만큼 더 눌러 준다 (기법 B의 근거)
+        if (touched && this.pressUntil === null) {
+          this.pressUntil = claw.pos.y - cfg.descendOvertravel;
+        }
+        const pressed = this.pressUntil !== null && claw.pos.y <= this.pressUntil;
+
+        if (bottom || stopBtn || pressed) {
+          this.stopReason = stopBtn ? '정지 버튼'
+            : (pressed ? `접촉 자동 정지 (+${(cfg.descendOvertravel * 100).toFixed(1)}cm 누름)` : '하강 한계');
+          claw.close();
+          this.setState('CLOSE');
+        }
+        break;
+      }
+
+      case 'CLOSE':
+        if (this.timer > 0.55) {
+          this.rollGrip();
+          this.setState('LIFT');
+        }
+        break;
+
+      case 'LIFT':
+        claw.pos.y = Math.min(cfg.clawTopY, claw.pos.y + cfg.clawSpeedUp * dt);
+        // 파지 실패는 들어올리는 도중 발이 벌어지며 드러난다
+        if (this.lastGrip.failed && this.timer > cfg.clawSlipDelay) claw.slip();
+        // 끝까지 올라가면 그 자리에서 먼저 벌린다 (박스는 집어 올린 자리로 떨어진다)
+        if (claw.pos.y >= cfg.clawTopY - 1e-4) {
+          claw.open();
+          this.setState('RELEASE');
+        }
+        break;
+
+      // 벌린 채로 박스가 발에서 떨어질 때까지 기다린다 (닫으면 다시 잡혀 버림)
+      case 'RELEASE':
+        if (this.timer > 0.9 && (!this.clawTouchingBox() || this.timer > 2.5)) {
+          claw.setGripTorque(cfg.clawGripTorque);
+          this.setState('RETURN');
+        }
+        break;
+
+      // 벌린 채로 시작점까지 돌아간 뒤 오므린다
+      case 'RETURN': {
+        const dx = cfg.homeX - claw.pos.x;
+        const dz = cfg.homeZ - claw.pos.z;
+        const sx = cfg.clawSpeedX * dt, sz = cfg.clawSpeedZ * dt;
+        claw.pos.x += Math.max(-sx, Math.min(sx, dx));
+        claw.pos.z += Math.max(-sz, Math.min(sz, dz));
+        if (Math.abs(dx) < 1e-3 && Math.abs(dz) < 1e-3) {
+          if (!this.clawTouchingBox()) claw.close();
+          this.setState('IDLE');
+        }
+        break;
+      }
+
+      case 'WIN':
+        if (this.timer > 2.2) {
+          this.resetBox();
+          claw.teleport(cfg.homeX, cfg.clawTopY, cfg.homeZ);
+          claw.close();
+          claw.setGripTorque(cfg.clawGripTorque);
+          this.setState('IDLE');
+        }
+        break;
+    }
+
+    // 승리 판정: 박스가 틈을 완전히 통과해 아래로 떨어짐
+    if (this.state !== 'WIN') {
+      const t = this.boxBody.translation();
+      if (t.y < cfg.barLowY - 0.20) {
+        this.wins++;
+        this.setState('WIN');
+      }
+    }
+
+    claw.update(dt);
+  }
+
+  /** 파지 품질을 계산하고 확률적으로 grip 실패를 판정 */
+  rollGrip() {
+    const cfg = this.cfg;
+    const quality = this.claw.gripQuality(this.boxBody, this.boxHalf);
+    const failP = cfg.gripFailMin + (cfg.gripFailBase - cfg.gripFailMin) * (1 - quality);
+    const roll = Math.random();
+    const failed = roll < failP;
+    this.claw.setGripTorque(failed ? cfg.clawSlipTorque : cfg.clawGripTorque);
+    this.lastGrip = { quality, failP, roll, failed };
+    return this.lastGrip;
+  }
+
+  /** 집게(헤드/발)가 박스에 닿아 있는가 */
+  clawTouchingBox() { return this.clawBoxPairs.size > 0; }
+
+  /** 지금 박스가 닿아 있는 봉 번호 목록 (튜닝용 계측) */
+  barContacts() {
+    return [...new Set(this.boxBarPairs.values())].sort();
+  }
+
+  render(dt = 1 / 60) {
+    syncMesh(this.boxMesh, this.boxBody);
+    this.claw.render();
+    this.updatePaper(dt);
+  }
+
+  /** 집게·봉이 누르고 있는 지점을 모아 종이 상자를 찌그러뜨린다 */
+  updatePaper(dt) {
+    const pressers = this.claw.pressers(this._pressers);
+    const t = this.boxBody.translation();
+    // 하중이 실린 지지점(닿아 있는 봉)도 옅은 자국을 남긴다
+    for (const n of this.barContacts()) {
+      const bar = this.machine.bars.find((b) => b.n === n);
+      if (!bar) continue;
+      pressers.push({
+        point: new THREE.Vector3(t.x, bar.y + this.cfg.barRadius, bar.z),
+        strength: 0.12,
+      });
+    }
+    this.paper.update(dt, t, this.boxBody.rotation(), pressers);
+  }
+
+  /** 파라미터 변경 후 전체 재구성 */
+  rebuild() {
+    this.machine.dispose();
+    this.claw.dispose();
+    this.machine = new Machine(this.world, this.scene, this.cfg);
+    this.claw = new Claw(this.world, this.scene, this.cfg);
+    this.resetBox();
+    this.setState('IDLE');
+  }
+}
+
+
+// ===== src/ui.js =====
+
+
+// 값이 바뀌면 기구/박스를 다시 만들어야 하는 파라미터
+const REBUILD_KEYS = new Set([
+  'barRadius', 'barLength', 'barGapZ', 'barOuterZ', 'barLowY', 'barRaise',
+  'frictionRubber', 'frictionSlick', 'frictionBox', 'frictionFloor', 'frictionClaw',
+  'boxW', 'boxH', 'boxD', 'boxMass', 'boxRestitution', 'boxLinDamp', 'boxAngDamp',
+  'clawPivotX', 'clawArmLen', 'clawFingerMass', 'clawTipThick', 'clawTipWidth', 'clawTipLen',
+  'cabW', 'cabDback', 'frontGap', 'shelfDrop', 'chuteDrop', 'displayCount',
+]);
+
+class UI {
+  constructor({ cfg, app }) {
+    this.cfg = cfg;
+    this.app = app;      // { game, world, debug, setView }
+    this.buttons = { move: false, fwd: false, stop: false };
+    this.rebuildTimer = null;
+    this.sliders = [];
+    this.buildDom();
+    this.bindKeys();
+  }
+
+  get game() { return this.app.game; }
+
+  buildDom() {
+    // ---------- HUD ----------
+    this.hud = el('div', 'hud');
+    this.hud.innerHTML = `
+      <div class="row"><b id="hud-state">대기</b></div>
+      <div class="row muted" id="hud-score">시도 0 · 성공 0</div>
+      <hr>
+      <div class="row"><span>박스 z</span><b id="hud-bz">–</b></div>
+      <div class="row"><span>박스 기울기(X축)</span><b id="hud-tilt">–</b></div>
+      <div class="row"><span>접촉 봉</span><b id="hud-bars">–</b></div>
+      <hr>
+      <div class="row"><span>파지 품질</span><b id="hud-q">–</b></div>
+      <div class="row"><span>실패율/주사위</span><b id="hud-roll">–</b></div>
+      <div class="row wrap"><span>정지 사유</span><b id="hud-stop">–</b></div>`;
+    document.body.appendChild(this.hud);
+
+    // ---------- 조작 버튼 3개 ----------
+    const pad = el('div', 'pad');
+    this.btnEls = {};
+    const defs = [
+      ['move', '① 이동', '좌우(봉과 평행)<br>A / ←'],
+      ['fwd', '② 전진', '전후(봉과 수직)<br>W / ↑'],
+      ['stop', '③ 정지', '하강 중 정지+오므림<br>Space / S'],
+    ];
+    for (const [key, label, sub] of defs) {
+      const b = el('button', 'padbtn');
+      b.innerHTML = `<span class="big">${label}</span><span class="sub">${sub}</span>`;
+      const down = (e) => { e.preventDefault(); this.buttons[key] = true; b.classList.add('on'); };
+      const up = (e) => { e.preventDefault(); this.buttons[key] = false; b.classList.remove('on'); };
+      b.addEventListener('pointerdown', down);
+      b.addEventListener('pointerup', up);
+      b.addEventListener('pointerleave', up);
+      b.addEventListener('pointercancel', up);
+      b.addEventListener('contextmenu', (e) => e.preventDefault());
+      pad.appendChild(b);
+      this.btnEls[key] = b;
+    }
+    document.body.appendChild(pad);
+
+    // ---------- 툴바 ----------
+    const bar = el('div', 'toolbar');
+    const mk = (label, fn, cls = '') => {
+      const b = el('button', 'tool ' + cls);
+      b.textContent = label;
+      b.addEventListener('click', fn);
+      bar.appendChild(b);
+      return b;
+    };
+    mk('박스 초기위치', () => this.game.resetBox());
+    mk('박스 → 1번 봉', () => this.game.resetBox(this.game.poseOnOuterBar(1)));
+    mk('박스 → 4번 봉', () => this.game.resetBox(this.game.poseOnOuterBar(4)));
+    this.freeBtn = mk('자유 조작: OFF', () => {
+      this.game.freeMode = !this.game.freeMode;
+      this.freeBtn.textContent = '자유 조작: ' + (this.game.freeMode ? 'ON' : 'OFF');
+      this.freeBtn.classList.toggle('active', this.game.freeMode);
+    });
+    this.dbgBtn = mk('물리 와이어', () => {
+      this.app.debug.visible = !this.app.debug.visible;
+      this.dbgBtn.classList.toggle('active', this.app.debug.visible);
+    });
+    mk('정면', () => this.app.setView('front'));
+    mk('측면', () => this.app.setView('side'));
+    mk('위', () => this.app.setView('top'));
+    this.panelBtn = mk('⚙ 튜닝', () => {
+      this.panel.classList.toggle('open');
+      this.panelBtn.classList.toggle('active', this.panel.classList.contains('open'));
+    }, 'accent');
+    document.body.appendChild(bar);
+
+    // ---------- 튜닝 패널 ----------
+    this.panel = el('div', 'panel');
+    const head = el('div', 'panel-head');
+    head.innerHTML = '<b>파라미터 튜닝</b>';
+    const resetAll = el('button', 'tool');
+    resetAll.textContent = '기본값 복원';
+    resetAll.addEventListener('click', () => {
+      Object.assign(this.cfg, DEFAULTS);
+      clearConfig();
+      this.syncSliders();
+      this.scheduleRebuild(true);
+    });
+    head.appendChild(resetAll);
+    this.panel.appendChild(head);
+
+    for (const g of SCHEMA) {
+      const sec = el('div', 'sec');
+      sec.appendChild(Object.assign(el('div', 'sec-title'), { textContent: g.group }));
+      for (const [key, label, min, max, step] of g.items) {
+        const row = el('div', 'srow');
+        const name = el('label', 'sname');
+        name.textContent = label;
+        const val = el('span', 'sval');
+        const input = el('input', 'slider');
+        input.type = 'range';
+        input.min = min; input.max = max; input.step = step;
+        input.value = this.cfg[key];
+        val.textContent = fmt(this.cfg[key]);
+        input.addEventListener('input', () => {
+          this.cfg[key] = parseFloat(input.value);
+          val.textContent = fmt(this.cfg[key]);
+          saveConfig(this.cfg);
+          if (REBUILD_KEYS.has(key)) this.scheduleRebuild();
+          else this.app.applyLive();
+        });
+        row.append(name, input, val);
+        sec.appendChild(row);
+        this.sliders.push({ key, input, val });
+      }
+      this.panel.appendChild(sec);
+    }
+    document.body.appendChild(this.panel);
+
+    // ---------- 승리 오버레이 ----------
+    this.overlay = el('div', 'overlay');
+    this.overlay.innerHTML = '<div class="win">GET!<span>상품이 2–3번 봉 틈으로 낙하</span></div>';
+    document.body.appendChild(this.overlay);
+  }
+
+  syncSliders() {
+    for (const s of this.sliders) {
+      s.input.value = this.cfg[s.key];
+      s.val.textContent = fmt(this.cfg[s.key]);
+    }
+  }
+
+  scheduleRebuild(now = false) {
+    clearTimeout(this.rebuildTimer);
+    this.rebuildTimer = setTimeout(() => this.app.rebuild(), now ? 0 : 220);
+  }
+
+  bindKeys() {
+    const map = { KeyA: 'move', ArrowLeft: 'move', KeyW: 'fwd', ArrowUp: 'fwd', Space: 'stop', KeyS: 'stop', ArrowDown: 'stop' };
+    addEventListener('keydown', (e) => {
+      const k = map[e.code];
+      if (!k) return;
+      e.preventDefault();
+      this.buttons[k] = true;
+      this.btnEls[k].classList.add('on');
+    });
+    addEventListener('keyup', (e) => {
+      const k = map[e.code];
+      if (!k) return;
+      e.preventDefault();
+      this.buttons[k] = false;
+      this.btnEls[k].classList.remove('on');
+    });
+    addEventListener('blur', () => {
+      for (const k of Object.keys(this.buttons)) {
+        this.buttons[k] = false;
+        this.btnEls[k].classList.remove('on');
+      }
+    });
+  }
+
+  update() {
+    const g = this.game;
+    q('#hud-state').textContent = STATE[g.state] || g.state;
+    q('#hud-score').textContent = `시도 ${g.attempts} · 성공 ${g.wins}`;
+
+    const t = g.boxBody.translation();
+    const r = g.boxBody.rotation();
+    q('#hud-bz').textContent = (t.z * 100).toFixed(1) + ' cm';
+    q('#hud-tilt').textContent = tiltX(r).toFixed(0) + '°';
+    const bars = g.barContacts();
+    q('#hud-bars').textContent = bars.length ? bars.map((n) => n + '번').join(', ') : '없음';
+
+    const gr = g.lastGrip;
+    q('#hud-q').textContent = gr.quality.toFixed(2);
+    q('#hud-roll').textContent =
+      `${(gr.failP * 100).toFixed(0)}% / ${gr.roll.toFixed(2)} ${gr.failed ? '✕' : '○'}`;
+    q('#hud-roll').className = gr.failed ? 'bad' : 'good';
+    q('#hud-stop').textContent = g.stopReason || '–';
+
+    this.overlay.classList.toggle('show', g.state === 'WIN');
+  }
+}
+
+// ---- 유틸 ----
+function el(tag, cls) { const e = document.createElement(tag); if (cls) e.className = cls; return e; }
+function q(sel) { return document.querySelector(sel); }
+function fmt(v) { return Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(3).replace(/0+$/, '').replace(/\.$/, ''); }
+
+/** 쿼터니언에서 X축 회전 성분(도) — 봉을 축으로 한 기울기 */
+function tiltX(r) {
+  const sinp = 2 * (r.w * r.x + r.y * r.z);
+  const cosp = 1 - 2 * (r.x * r.x + r.y * r.y);
+  return Math.atan2(sinp, cosp) * 180 / Math.PI;
+}
+
+
+// ===== src/main.js =====
+
+
+
+const cfg = loadConfig();
+
+// ------------------------------------------------------------------ three 셋업
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0e13);
+scene.fog = new THREE.Fog(0x0b0e13, 2.2, 5.0);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.05, 50);
+const controls = new OrbitCam(camera, renderer.domElement);
+
+function setView(kind) {
+  const y = cfg.barLowY;
+  const t = new THREE.Vector3(0, y + 0.14, -0.06);
+  const p = new THREE.Vector3(0.16, y + 0.60, 1.62);
+  if (kind === 'side') { p.set(1.60, y + 0.18, 0.02); t.set(0, y + 0.06, -0.02); }
+  else if (kind === 'top') p.set(0.02, y + 1.45, -0.05);
+  controls.setView(p, t);
+}
+setView('front');
+
+scene.add(new THREE.HemisphereLight(0xbcd8ff, 0x1c2230, 1.15));
+const key = new THREE.DirectionalLight(0xffffff, 2.6);
+key.position.set(0.9, 1.9, 1.2);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 0.4;
+key.shadow.camera.far = 5;
+const sc = key.shadow.camera;
+sc.left = -0.9; sc.right = 0.9; sc.top = 0.9; sc.bottom = -0.9;
+sc.updateProjectionMatrix();
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x9fc0ff, 0.75);
+fill.position.set(-1.1, 0.9, -1.0);
+scene.add(fill);
+
+// 캐비닛 내부 조명 (실기의 상단 형광등)
+const cabinet = new THREE.PointLight(0xfff2d8, 3.0, 2.2, 1.6);
+cabinet.position.set(0, cfg.clawTopY + 0.06, -0.02);
+scene.add(cabinet);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ------------------------------------------------------------------ 물리 + 게임
+await initRapier();
+let world = createWorld(cfg);
+let eventQueue = new RAPIER.EventQueue(true);
+let game = new Game(world, scene, cfg);
+const debug = new DebugLines(scene);
+
+const app = {
+  get game() { return game; },
+  debug,
+  setView,
+  applyLive() {
+    world.gravity = { x: 0, y: cfg.gravity, z: 0 };
+    if ('numSolverIterations' in world) world.numSolverIterations = cfg.solverIters;
+  },
+  rebuild() {
+    game.rebuild();
+    app.applyLive();
+  },
+};
+
+const ui = new UI({ cfg, app });
+app.applyLive();
+
+// ------------------------------------------------------------------ 루프
+let last = performance.now();
+let acc = 0;
+const FIXED = 1 / 120;
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+
+  game.setButtons(ui.buttons);
+  game.update(dt);
+
+  acc += dt;
+  const maxSteps = Math.max(1, Math.round(cfg.subSteps)) * 2;
+  let steps = 0;
+  while (acc >= FIXED && steps < maxSteps) {
+    world.step(eventQueue);
+    eventQueue.drainCollisionEvents((h1, h2, started) => game.onCollision(h1, h2, started));
+    acc -= FIXED;
+    steps++;
+  }
+  if (acc > 0.25) acc = 0;
+
+  game.render(dt);
+  debug.update(world);
+  controls.update();
+  ui.update();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(frame);
+
+// ------------------------------------------------------------------ 콘솔/테스트 도구
+window.__ufo = {
+  cfg, get game() { return game; }, world, THREE, RAPIER, ui, app,
+
+  /** 화면과 무관하게 물리를 n초만큼 즉시 진행 (파라미터 검증용) */
+  simulate(seconds, buttons = null) {
+    const n = Math.max(1, Math.round(seconds / FIXED));
+    for (let i = 0; i < n; i++) {
+      if (buttons) game.setButtons(buttons);
+      game.update(FIXED);
+      world.step(eventQueue);
+      eventQueue.drainCollisionEvents((h1, h2, st) => game.onCollision(h1, h2, st));
+    }
+    const t = game.boxBody.translation();
+    const r = game.boxBody.rotation();
+    const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w), 'XYZ');
+    return {
+      state: game.state,
+      box: { x: +t.x.toFixed(3), y: +t.y.toFixed(3), z: +t.z.toFixed(3) },
+      tiltXdeg: +(e.x * 180 / Math.PI).toFixed(1),
+      bars: game.barContacts(),
+      grip: game.lastGrip,
+    };
+  },
+
+  /** 집게를 원하는 위치로 순간이동시키고 벌림 상태 지정 */
+  place(x, y, z, spreadOpen = false) {
+    game.claw.teleport(x, y, z);
+    if (spreadOpen) game.claw.open(); else game.claw.close();
+    game.claw.spread = game.claw.targetSpread;
+    game.claw.applyMotor(true);
+  },
+};
+
+if (__boot) __boot.remove();
+
+</script>
