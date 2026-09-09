@@ -186,7 +186,7 @@ const DEFAULTS = {
   // 이 집게는 마찰로 무는 게 아니라 발이 박스 "밑으로" 들어가 걷어 올리므로,
   // 발끝이 2·3번 봉 윗면(=박스 바닥)보다 더 내려가야 한다. 봉이 있는 z 에서는
   // 발이 봉에 닿아 먼저 멈추고, 2–3번 틈 위에서만 이 깊이까지 내려간다.
-  clawMinY: 0.720,
+  clawMinY: 0.700,
   homeX: 0.28,           // 홈 = 가장 오른쪽
   homeZ: 0.16,           // 1번 봉 위. 여기서 출발하고 여기로 복귀한다
   limitX: 0.28,          // cabW(0.50) - 벌렸을 때 팔 최대반경(약 0.199) - 여유
@@ -288,7 +288,7 @@ const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v9';
+const KEY = 'ufo-catcher-cfg-v10';
 
 function loadConfig() {
   const cfg = { ...DEFAULTS };
