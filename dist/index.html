@@ -128,7 +128,7 @@ const DEFAULTS = {
   frictionSlick: 0.125,  // 1·4번 봉: 코팅 없음 (미끄럼)
   frictionBox: 1.0,      // 박스 표면 (봉 쪽 Multiply 규칙으로 결합)
   frictionFloor: 0.75,
-  frictionClaw: 0.20,
+  frictionClaw: 0.05,
 
   // ---- 상품 박스 (빳빳한 종이) ----
   boxW: 0.12,            // X (가로, 봉과 평행)
@@ -220,7 +220,7 @@ const SCHEMA = [
     ['frictionRubber', '2·3번 봉 마찰(고무)', 0.05, 3.0, 0.05],
     ['frictionSlick',  '1·4번 봉 마찰(미끄럼)', 0.0, 1.0, 0.005],
     ['frictionBox',    '박스 표면 마찰', 0.05, 2.0, 0.05],
-    ['frictionClaw',   '집게 발 마찰', 0.05, 2.0, 0.05],
+    ['frictionClaw',   '집게 발 마찰', 0.0, 2.0, 0.01],
     ['frictionFloor',  '바닥판 마찰', 0.05, 2.0, 0.05],
   ]},
   { group: '봉 배치', items: [
@@ -283,7 +283,7 @@ const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v7';
+const KEY = 'ufo-catcher-cfg-v8';
 
 function loadConfig() {
   const cfg = { ...DEFAULTS };
