@@ -69,7 +69,7 @@ export const DEFAULTS = {
   clawSpeedUp: 0.22,
   // 접촉 후에도 더 내려가는 양. 0 이면 닿는 즉시 정지하고, 이 경우 기법 B(눌러서
   // 떨어뜨리기)가 물리적으로 불가능하다. 실제 기계도 관성 때문에 조금 더 눌린다.
-  descendOvertravel: 0.014,
+  descendOvertravel: 0.005,
   clawTopY: 1.06,        // 집게 헤드 최상단 높이
   // 하강 한계(실기처럼 고정 깊이). 벌린 발끝은 헤드보다 약 17cm 아래다.
   // 이 집게는 마찰로 무는 게 아니라 발이 박스 "밑으로" 들어가 걷어 올리므로,
@@ -93,7 +93,7 @@ export const DEFAULTS = {
   // 앞 유리와 1번 봉 사이 간격 = boxW + frontGap.
   // 박스가 여기 빠지면 껴서 회수하기 어렵다 (실수했을 때의 벌칙).
   frontGap: 0.020,
-  cabDback: 0.62,        // 뒤쪽 깊이 (4번 봉 뒤 진열대 포함)
+  cabDback: 0.710,       // 뒤쪽 깊이 (4번 봉 뒤 진열대 포함)
   shelfDrop: 0.10,       // 봉(2·3번) 대비 바깥 바닥판이 낮은 양
   chuteDrop: 0.45,       // 상품 출구 바닥 깊이
   displayCount: 5,       // 4번 봉 뒤 진열대에 올릴 장식용 피규어 박스 개수
@@ -178,7 +178,7 @@ export const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v11';
+const KEY = 'ufo-catcher-cfg-v12';
 
 export function loadConfig() {
   const cfg = { ...DEFAULTS };

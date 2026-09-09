@@ -137,8 +137,12 @@ export class UI {
 
     // ---------- 승리 오버레이 ----------
     this.overlay = el('div', 'overlay');
-    this.overlay.innerHTML = '<div class="win">GET!<span>상품이 2–3번 봉 틈으로 낙하</span></div>';
+    this.overlay.innerHTML =
+      '<div class="win">축하합니다' +
+      '<span>상품이 2–3번 봉 틈을 통과했습니다</span>' +
+      '<button class="restart" id="btn-restart">다시하기</button></div>';
     document.body.appendChild(this.overlay);
+    q('#btn-restart').addEventListener('click', () => this.game.restart());
   }
 
   syncSliders() {

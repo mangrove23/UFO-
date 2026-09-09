@@ -99,11 +99,14 @@ export class Machine {
     //   1–2번, 3–4번 봉 사이 간격은 박스의 최소 통과폭보다 좁아 박스가 끼어 버린다.
 
     // ---- 4번 봉 뒤 진열대: 2·3번 봉 윗면과 같은 높이 ----
+    // 4번 봉 바로 뒤가 아니라, 3–4번 봉 간격만큼 더 뒤에서 시작한다.
+    const gap34 = cfg.barOuterZ - cfg.barGapZ / 2;   // 3번↔4번 봉 중심 간격
+    const dispNear = bar4Back + gap34;
     const dispTop = cfg.barLowY + cfg.barRadius;
-    const dispHalfD = (dBack - bar4Back) / 2;
-    this.addBox(cfg.cabW, 0.01, dispHalfD, 0, dispTop - 0.01, -(bar4Back + dBack) / 2,
+    const dispHalfD = (dBack - dispNear) / 2;
+    this.addBox(cfg.cabW, 0.01, dispHalfD, 0, dispTop - 0.01, -(dispNear + dBack) / 2,
       new THREE.MeshStandardMaterial({ color: 0x333b49, roughness: 0.75 }), cfg.frictionFloor);
-    this.addDisplayPrizes(dispTop, bar4Back, dBack);
+    this.addDisplayPrizes(dispTop, dispNear, dBack);
 
     // ---- 상품 출구 바닥 ----
     this.addBox(cfg.cabW, 0.01, (dFront + dBack) / 2, 0, chuteY, (dFront - dBack) / 2,

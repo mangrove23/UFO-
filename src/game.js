@@ -137,6 +137,18 @@ export class Game {
     return true;
   }
 
+  /** 승리 화면의 "다시하기" — 기구와 집게를 처음 상태로 되돌린다 */
+  restart() {
+    const cfg = this.cfg;
+    this.resetBox();
+    this.claw.teleport(cfg.homeX, cfg.clawTopY, cfg.homeZ);
+    this.claw.close();
+    this.claw.setGripTorque(cfg.clawGripTorque);
+    this.stopReason = '';
+    this.lastGrip = { quality: 0, failP: 0, roll: 0, failed: false };
+    this.setState('IDLE');
+  }
+
   /** 집게를 벌리고 자동 하강 시작 */
   beginDescend() {
     this.claw.open();
@@ -293,14 +305,8 @@ export class Game {
         break;
       }
 
+      // 자동 복귀하지 않는다. UI 의 "다시하기" 버튼이 restart() 를 부를 때까지 대기.
       case 'WIN':
-        if (this.timer > 2.2) {
-          this.resetBox();
-          claw.teleport(cfg.homeX, cfg.clawTopY, cfg.homeZ);
-          claw.close();
-          claw.setGripTorque(cfg.clawGripTorque);
-          this.setState('IDLE');
-        }
         break;
     }
 

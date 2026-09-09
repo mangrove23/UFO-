@@ -85,12 +85,26 @@ canvas { display: block; }
   position: fixed; inset: 0; display: grid; place-content: center; pointer-events: none;
   opacity: 0; transition: opacity .25s; z-index: 8;
 }
-.overlay.show { opacity: 1; }
+.overlay.show { opacity: 1; pointer-events: auto; }
 .overlay .win {
-  font-size: 68px; font-weight: 900; letter-spacing: 4px; color: #ffe066;
+  font-size: 56px; font-weight: 900; letter-spacing: 2px; color: #ffe066;
   text-shadow: 0 6px 30px rgba(255,224,102,.55); text-align: center;
+  padding: 34px 56px 30px; border-radius: 18px;
+  background: rgba(10, 13, 19, .82); border: 1px solid #2b3547;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 20px 60px rgba(0,0,0,.6);
 }
-.overlay .win span { display: block; font-size: 15px; font-weight: 600; color: #e6ebf2; letter-spacing: 0; margin-top: 6px; }
+.overlay .win span { display: block; font-size: 15px; font-weight: 600; color: #e6ebf2; letter-spacing: 0; margin-top: 8px; }
+.overlay .restart {
+  margin-top: 22px; padding: 12px 30px; font-size: 16px; font-weight: 700;
+  letter-spacing: 1px; border-radius: 10px; cursor: pointer; font-family: inherit;
+  color: #0b0e13; background: linear-gradient(#ffe066, #f6c531); border: 1px solid #fff3bf;
+  box-shadow: 0 4px 0 #b58b16, 0 10px 24px rgba(0,0,0,.5);
+  transition: transform .05s, box-shadow .05s;
+}
+.overlay .restart:hover { background: linear-gradient(#fff3bf, #ffe066); }
+.overlay .restart:active { transform: translateY(4px); box-shadow: 0 0 0 #b58b16, 0 4px 14px rgba(0,0,0,.5); }
+.overlay .restart:focus-visible { outline: 3px solid #7dd3fc; outline-offset: 3px; }
 
 @media (max-width: 820px) {
   .padbtn { width: 108px; }
@@ -180,7 +194,7 @@ const DEFAULTS = {
   clawSpeedUp: 0.22,
   // 접촉 후에도 더 내려가는 양. 0 이면 닿는 즉시 정지하고, 이 경우 기법 B(눌러서
   // 떨어뜨리기)가 물리적으로 불가능하다. 실제 기계도 관성 때문에 조금 더 눌린다.
-  descendOvertravel: 0.014,
+  descendOvertravel: 0.005,
   clawTopY: 1.06,        // 집게 헤드 최상단 높이
   // 하강 한계(실기처럼 고정 깊이). 벌린 발끝은 헤드보다 약 17cm 아래다.
   // 이 집게는 마찰로 무는 게 아니라 발이 박스 "밑으로" 들어가 걷어 올리므로,
@@ -204,7 +218,7 @@ const DEFAULTS = {
   // 앞 유리와 1번 봉 사이 간격 = boxW + frontGap.
   // 박스가 여기 빠지면 껴서 회수하기 어렵다 (실수했을 때의 벌칙).
   frontGap: 0.020,
-  cabDback: 0.62,        // 뒤쪽 깊이 (4번 봉 뒤 진열대 포함)
+  cabDback: 0.710,       // 뒤쪽 깊이 (4번 봉 뒤 진열대 포함)
   shelfDrop: 0.10,       // 봉(2·3번) 대비 바깥 바닥판이 낮은 양
   chuteDrop: 0.45,       // 상품 출구 바닥 깊이
   displayCount: 5,       // 4번 봉 뒤 진열대에 올릴 장식용 피규어 박스 개수
@@ -289,7 +303,7 @@ const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v11';
+const KEY = 'ufo-catcher-cfg-v12';
 
 function loadConfig() {
   const cfg = { ...DEFAULTS };
@@ -724,11 +738,14 @@ class Machine {
     //   1–2번, 3–4번 봉 사이 간격은 박스의 최소 통과폭보다 좁아 박스가 끼어 버린다.
 
     // ---- 4번 봉 뒤 진열대: 2·3번 봉 윗면과 같은 높이 ----
+    // 4번 봉 바로 뒤가 아니라, 3–4번 봉 간격만큼 더 뒤에서 시작한다.
+    const gap34 = cfg.barOuterZ - cfg.barGapZ / 2;   // 3번↔4번 봉 중심 간격
+    const dispNear = bar4Back + gap34;
     const dispTop = cfg.barLowY + cfg.barRadius;
-    const dispHalfD = (dBack - bar4Back) / 2;
-    this.addBox(cfg.cabW, 0.01, dispHalfD, 0, dispTop - 0.01, -(bar4Back + dBack) / 2,
+    const dispHalfD = (dBack - dispNear) / 2;
+    this.addBox(cfg.cabW, 0.01, dispHalfD, 0, dispTop - 0.01, -(dispNear + dBack) / 2,
       new THREE.MeshStandardMaterial({ color: 0x333b49, roughness: 0.75 }), cfg.frictionFloor);
-    this.addDisplayPrizes(dispTop, bar4Back, dBack);
+    this.addDisplayPrizes(dispTop, dispNear, dBack);
 
     // ---- 상품 출구 바닥 ----
     this.addBox(cfg.cabW, 0.01, (dFront + dBack) / 2, 0, chuteY, (dFront - dBack) / 2,
@@ -1281,6 +1298,18 @@ class Game {
     return true;
   }
 
+  /** 승리 화면의 "다시하기" — 기구와 집게를 처음 상태로 되돌린다 */
+  restart() {
+    const cfg = this.cfg;
+    this.resetBox();
+    this.claw.teleport(cfg.homeX, cfg.clawTopY, cfg.homeZ);
+    this.claw.close();
+    this.claw.setGripTorque(cfg.clawGripTorque);
+    this.stopReason = '';
+    this.lastGrip = { quality: 0, failP: 0, roll: 0, failed: false };
+    this.setState('IDLE');
+  }
+
   /** 집게를 벌리고 자동 하강 시작 */
   beginDescend() {
     this.claw.open();
@@ -1437,14 +1466,8 @@ class Game {
         break;
       }
 
+      // 자동 복귀하지 않는다. UI 의 "다시하기" 버튼이 restart() 를 부를 때까지 대기.
       case 'WIN':
-        if (this.timer > 2.2) {
-          this.resetBox();
-          claw.teleport(cfg.homeX, cfg.clawTopY, cfg.homeZ);
-          claw.close();
-          claw.setGripTorque(cfg.clawGripTorque);
-          this.setState('IDLE');
-        }
         break;
     }
 
@@ -1653,8 +1676,12 @@ class UI {
 
     // ---------- 승리 오버레이 ----------
     this.overlay = el('div', 'overlay');
-    this.overlay.innerHTML = '<div class="win">GET!<span>상품이 2–3번 봉 틈으로 낙하</span></div>';
+    this.overlay.innerHTML =
+      '<div class="win">축하합니다' +
+      '<span>상품이 2–3번 봉 틈을 통과했습니다</span>' +
+      '<button class="restart" id="btn-restart">다시하기</button></div>';
     document.body.appendChild(this.overlay);
+    q('#btn-restart').addEventListener('click', () => this.game.restart());
   }
 
   syncSliders() {
