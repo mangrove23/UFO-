@@ -76,7 +76,7 @@ export const DEFAULTS = {
   // 발끝이 2·3번 봉 윗면(=박스 바닥)보다 충분히 내려가야 한다.
   // 실기처럼 헤드가 박스를 들이받는 깊이까지 내려간다 — 봉이나 박스에 닿으면
   // 접촉 자동 정지가 먼저 걸리고, 2–3번 틈 위에서만 이 깊이까지 내려간다.
-  clawMinY: 0.650,
+  clawMinY: 0.600,
   homeX: 0.28,           // 홈 = 가장 오른쪽
   homeZ: 0.16,           // 1번 봉 위. 여기서 출발하고 여기로 복귀한다
   limitX: 0.28,          // cabW(0.50) - 벌렸을 때 팔 최대반경(약 0.199) - 여유
@@ -178,7 +178,7 @@ export const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v12';
+const KEY = 'ufo-catcher-cfg-v13';
 
 export function loadConfig() {
   const cfg = { ...DEFAULTS };
