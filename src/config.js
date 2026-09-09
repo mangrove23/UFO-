@@ -37,14 +37,17 @@ export const DEFAULTS = {
   // ---- 집게 ----
   // 벌림각 spread: 0 = 두 발끝이 정중앙에서 맞닿음, 클수록 벌어짐.
   clawPivotX: 0.100,     // 발 회전축의 |x| (= 발끝이 안쪽으로 뻗는 길이와 동일)
-  clawArmLen: 0.170,     // 발 길이
+  clawArmLen: 0.170,     // 발(팔) 전체 길이
+  // 팔은 팔꿈치에서 꺾여, 두 팔이 마름모를 이룬다 (실기와 같은 형태).
+  clawElbowOut: 0.035,   // 팔꿈치가 바깥으로 벌어지는 양
+  clawElbowAt: 0.45,     // 팔꿈치 높이 (팔 길이 대비 비율)
   clawTipThick: 0.006,   // 발끝 판 두께의 절반 (납작한 판)
   clawTipWidth: 0.021,   // 발끝 판 폭의 절반 (Z 방향)
   // 발가락(안쪽으로 꺾인 판) 길이의 절반.
   // 발가락은 발(팔)의 안쪽 면에 붙어 있고 거기서부터 안쪽으로 뻗는다.
   // 따라서 이 값을 줄이면 박스 밑으로 파고드는 도달 거리도 같이 짧아진다.
   clawTipLen: 0.0225,
-  clawOpenSpread: 0.85,  // 벌어졌을 때 (rad)
+  clawOpenSpread: 0.55,  // 벌어졌을 때. 팔꿈치 때문에 더 벌리면 옆 유리에 닿는다
   clawCloseSpread: 0.00,  // 발가락이 짧아져 서로 부딪히지 않으므로 끝까지 오므린다
   // 파지력은 "각도 오차 × 강성" 이 아니라 일정한 토크로 준다.
   // (모터 강성을 매 프레임 torque/오차 로 역산 → 박스 폭과 무관하게 힘이 일정)
@@ -73,9 +76,9 @@ export const DEFAULTS = {
   // 발끝이 2·3번 봉 윗면(=박스 바닥)보다 더 내려가야 한다. 봉이 있는 z 에서는
   // 발이 봉에 닿아 먼저 멈추고, 2–3번 틈 위에서만 이 깊이까지 내려간다.
   clawMinY: 0.720,
-  homeX: 0.33,           // 홈 = 가장 오른쪽 (벌린 발끝이 옆 유리에 닿지 않는 한계)
+  homeX: 0.28,           // 홈 = 가장 오른쪽
   homeZ: 0.16,           // 1번 봉 위. 여기서 출발하고 여기로 복귀한다
-  limitX: 0.33,          // cabW(0.50) - 벌렸을 때 발끝 도달거리(약 0.156) - 여유
+  limitX: 0.28,          // cabW(0.50) - 벌렸을 때 팔 최대반경(약 0.199) - 여유
   limitZfront: 0.32,
   limitZback: -0.185,     // 4번 봉 뒤 진열대에는 못 간다
 
@@ -142,7 +145,9 @@ export const SCHEMA = [
     ['clawOpenSpread',  '벌림각 — 열림(rad)', 0.1, 1.3, 0.01],
     ['clawCloseSpread', '벌림각 — 닫힘(rad)', 0.0, 0.8, 0.01],
     ['clawPivotX',   '발 축 간격 |x|', 0.03, 0.18, 0.005],
-    ['clawArmLen',   '발 길이', 0.06, 0.28, 0.005],
+    ['clawArmLen',   '팔 길이', 0.06, 0.28, 0.005],
+    ['clawElbowOut', '팔꿈치 벌어짐', 0.0, 0.09, 0.002],
+    ['clawElbowAt',  '팔꿈치 높이 비율', 0.15, 0.85, 0.01],
     ['clawTipThick', '발끝 두께(절반)', 0.002, 0.03, 0.001],
     ['clawTipWidth', '발끝 폭(절반)', 0.005, 0.06, 0.001],
     ['clawTipLen',   '발끝 길이(절반)', 0.008, 0.06, 0.001],
@@ -172,7 +177,7 @@ export const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v8';
+const KEY = 'ufo-catcher-cfg-v9';
 
 export function loadConfig() {
   const cfg = { ...DEFAULTS };

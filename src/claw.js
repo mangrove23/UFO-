@@ -45,6 +45,11 @@ export class Claw {
 
     const metal = new THREE.MeshStandardMaterial({ color: 0xc8ccd4, roughness: 0.28, metalness: 0.9 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x3a4150, roughness: 0.35, metalness: 0.75 });
+    // 실기의 팔은 투명 아크릴이다
+    const acrylic = new THREE.MeshPhysicalMaterial({
+      color: 0xdfeaf5, transparent: true, opacity: 0.42,
+      roughness: 0.08, metalness: 0.0, clearcoat: 1.0, side: THREE.DoubleSide,
+    });
 
     // ---- 헤드 (kinematic) ----
     this.head = this.world.createRigidBody(
@@ -92,16 +97,46 @@ export class Claw {
       // 바깥쪽 끝을 팔에 고정하므로, 길이를 줄이면 안쪽 도달 거리가 그만큼 짧아진다.
       const tipX = -sign * (ARM_HALF_X + tipHalf);
 
-      const armCol = this.world.createCollider(
-        RAPIER.ColliderDesc.cuboid(ARM_HALF_X, armLen / 2, 0.018)
-          .setTranslation(0, -armLen / 2, 0)
-          .setMass(cfg.clawFingerMass * 0.7)
-          .setFriction(cfg.frictionClaw)
-          .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Multiply)
-          .setRestitution(0.0)
-          .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
-        body
-      );
+      // ---- 팔: 팔꿈치에서 꺾인 2단 구조 ----
+      // 실기(SEGA UFO CATCHER)처럼 축에서 바깥으로 벌어졌다가 다시 안쪽으로 모여
+      // 두 팔이 마름모를 이룬다. 아래 끝은 다시 x=0 으로 돌아오므로 발가락 위치와
+      // 파지 계산은 그대로 유지된다.
+      const Ex = cfg.clawElbowOut;              // 팔꿈치가 바깥으로 벌어지는 양
+      const Ey = armLen * cfg.clawElbowAt;      // 팔꿈치 높이
+      const segments = [
+        [{ x: 0, y: 0 },          { x: sign * Ex, y: -Ey }],       // 축 → 팔꿈치 (바깥으로)
+        [{ x: sign * Ex, y: -Ey }, { x: 0, y: -armLen }],          // 팔꿈치 → 끝 (안쪽으로)
+      ];
+
+      const armCols = [];
+      const armMeshes = [];
+      for (const [a, b] of segments) {
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const len = Math.hypot(dx, dy);
+        // 기본 상자는 -Y 방향으로 서 있다. Z축으로 phi 만큼 돌려 세그먼트에 맞춘다.
+        const phi = Math.atan2(dx, -dy);
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), phi);
+
+        armCols.push(this.world.createCollider(
+          RAPIER.ColliderDesc.cuboid(ARM_HALF_X, len / 2, 0.018)
+            .setTranslation(mid.x, mid.y, 0)
+            .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
+            .setMass(cfg.clawFingerMass * 0.35)
+            .setFriction(cfg.frictionClaw)
+            .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Multiply)
+            .setRestitution(0.0)
+            .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+          body
+        ));
+
+        const m = new THREE.Mesh(new THREE.BoxGeometry(ARM_HALF_X * 2, len, 0.036), acrylic);
+        m.position.set(mid.x, mid.y, 0);
+        m.rotation.z = phi;
+        m.castShadow = true;
+        armMeshes.push(m);
+      }
+
       // 납작한 발끝 판
       const tipCol = this.world.createCollider(
         RAPIER.ColliderDesc.cuboid(tipHalf, tipThick, tipWidth)
@@ -113,7 +148,7 @@ export class Claw {
           .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
         body
       );
-      this.myColliders.add(armCol.handle);
+      for (const c of armCols) this.myColliders.add(c.handle);
       this.myColliders.add(tipCol.handle);
       this.bodies.push(body);
 
@@ -128,13 +163,10 @@ export class Claw {
 
       // 메쉬
       const g = new THREE.Group();
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(ARM_HALF_X * 2, armLen, 0.036), metal);
-      arm.position.set(0, -armLen / 2, 0);
-      arm.castShadow = true;
       const tip = new THREE.Mesh(new THREE.BoxGeometry(tipHalf * 2, tipThick * 2, tipWidth * 2), dark);
       tip.position.set(tipX, tipY, 0);
       tip.castShadow = true;
-      g.add(arm, tip);
+      g.add(...armMeshes, tip);
       this.group.add(g);
 
       this.fingers.push({

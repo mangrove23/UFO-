@@ -6,7 +6,7 @@ const REBUILD_KEYS = new Set([
   'barRadius', 'barLength', 'barGapZ', 'barOuterZ', 'barLowY', 'barRaise',
   'frictionRubber', 'frictionSlick', 'frictionBox', 'frictionFloor', 'frictionClaw',
   'boxW', 'boxH', 'boxD', 'boxMass', 'boxRestitution', 'boxLinDamp', 'boxAngDamp',
-  'clawPivotX', 'clawArmLen', 'clawFingerMass', 'clawTipThick', 'clawTipWidth', 'clawTipLen',
+  'clawPivotX', 'clawArmLen', 'clawElbowOut', 'clawElbowAt', 'clawFingerMass', 'clawTipThick', 'clawTipWidth', 'clawTipLen',
   'cabW', 'cabDback', 'frontGap', 'shelfDrop', 'chuteDrop', 'displayCount',
 ]);
 
