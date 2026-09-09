@@ -87,14 +87,16 @@ export class Machine {
 
     const matShelf = new THREE.MeshStandardMaterial({ color: 0x2e3440, roughness: 0.8, metalness: 0.15 });
 
-    // ---- 앞쪽 바닥판: 틈 가장자리 ~ 앞 유리 ----
+    // ---- 앞쪽 바닥판(트렌치): 1번 봉 앞 ~ 앞 유리 ----
     // 1번 봉과 앞 유리 사이가 박스 가로보다 조금 넓어서, 박스가 여기 빠지면 낀다.
-    this.addBox(cfg.cabW, 0.01, (dFront - slotHalf) / 2, 0, shelfY, (slotHalf + dFront) / 2,
+    const bar1Front = cfg.barOuterZ + cfg.barRadius;
+    this.addBox(cfg.cabW, 0.01, (dFront - bar1Front) / 2, 0, shelfY, (bar1Front + dFront) / 2,
       matShelf, cfg.frictionFloor);
 
-    // ---- 뒤쪽 바닥판: 틈 가장자리 ~ 4번 봉 뒤 ----
-    this.addBox(cfg.cabW, 0.01, (bar4Back - slotHalf) / 2, 0, shelfY, -(slotHalf + bar4Back) / 2,
-      matShelf, cfg.frictionFloor);
+    // ---- 1번 봉 ~ 4번 봉 구간은 바닥이 없다 ----
+    // 실기와 같이 봉 자체가 바닥이고 그 아래는 상품 출구까지 뚫려 있다.
+    // 그래도 통과할 수 있는 곳은 2–3번 봉 사이뿐이다:
+    //   1–2번, 3–4번 봉 사이 간격은 박스의 최소 통과폭보다 좁아 박스가 끼어 버린다.
 
     // ---- 4번 봉 뒤 진열대: 2·3번 봉 윗면과 같은 높이 ----
     const dispTop = cfg.barLowY + cfg.barRadius;
