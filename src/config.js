@@ -48,7 +48,7 @@ export const DEFAULTS = {
   clawCloseSpread: 0.00,  // 발가락이 짧아져 서로 부딪히지 않으므로 끝까지 오므린다
   // 파지력은 "각도 오차 × 강성" 이 아니라 일정한 토크로 준다.
   // (모터 강성을 매 프레임 torque/오차 로 역산 → 박스 폭과 무관하게 힘이 일정)
-  clawGripTorque: 0.62,  // N·m. 발 하나가 박스를 무는 힘
+  clawGripTorque: 1.00,  // N·m. 발 하나가 박스를 무는 힘
   clawSlipTorque: 0.10,  // grip 실패 시 토크
   // grip 실패 시: 들어올리는 도중 모터가 버티지 못하고 발이 이만큼 벌어진다.
   // (실기에서도 상승 직후 파지압이 빠지면서 놓친다)
@@ -172,7 +172,7 @@ export const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v5';
+const KEY = 'ufo-catcher-cfg-v6';
 
 export function loadConfig() {
   const cfg = { ...DEFAULTS };
