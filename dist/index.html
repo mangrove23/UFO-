@@ -163,7 +163,7 @@ const DEFAULTS = {
   clawSlipTorque: 0.10,  // grip 실패 시 토크
   // grip 실패 시: 들어올리는 도중 모터가 버티지 못하고 발이 이만큼 벌어진다.
   // (실기에서도 상승 직후 파지압이 빠지면서 놓친다)
-  clawSlipSpread: 0.58,
+  clawSlipSpread: 0.20,
   clawSlipDelay: 0.40,   // 오므린 뒤 이 시간이 지나면 벌어짐
   clawGripDamping: 0.35,
   clawMaxStiffness: 400, // 역산 강성 상한 (수치 안정용)
@@ -191,7 +191,7 @@ const DEFAULTS = {
   limitZback: -0.185,     // 4번 봉 뒤 진열대에는 못 간다
 
   // ---- grip 실패 확률 ----
-  gripFailBase: 0.82,    // 파지 품질이 0일 때의 실패 확률
+  gripFailBase: 0.50,    // 파지 품질이 0일 때의 실패 확률
   gripFailMin: 0.30,     // 완벽하게 잡았을 때의 실패 확률
   gripEdgeMargin: 0.016, // 발가락이 박스 밑으로 파고들 수 있는 최대 깊이(약 1.6cm)에 맞춘 판정 스케일
 
@@ -283,7 +283,7 @@ const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v4';
+const KEY = 'ufo-catcher-cfg-v5';
 
 function loadConfig() {
   const cfg = { ...DEFAULTS };

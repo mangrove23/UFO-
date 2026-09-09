@@ -1,0 +1,97 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e13; }
+body {
+  font: 13px/1.45 "Pretendard", "Malgun Gothic", system-ui, sans-serif;
+  color: #e6ebf2; -webkit-user-select: none; user-select: none; touch-action: none;
+}
+canvas { display: block; }
+
+#boot { position: fixed; inset: 0; display: grid; place-content: center; color: #8fa3bd; padding: 24px; }
+#boot pre { white-space: pre-wrap; font-size: 11px; color: #ff8a8a; max-width: 80vw; }
+
+/* ---------- HUD ---------- */
+.hud {
+  position: fixed; left: 12px; top: 12px; width: 234px; padding: 10px 12px;
+  background: rgba(14, 18, 26, .82); border: 1px solid #232b38; border-radius: 10px;
+  backdrop-filter: blur(6px); font-size: 12px;
+}
+.hud hr { border: 0; border-top: 1px solid #232b38; margin: 7px 0; }
+.hud .row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
+.hud .row span { color: #8fa3bd; }
+.hud .row b { color: #e6ebf2; font-weight: 600; text-align: right; white-space: nowrap; }
+.hud .row.wrap { display: block; }
+.hud .row.wrap b { display: block; text-align: left; white-space: normal; font-size: 11px; }
+.hud .muted { color: #7c8ba1; }
+.hud .good { color: #4ade80 !important; }
+.hud .bad { color: #fb7185 !important; }
+
+/* ---------- 조작 버튼 ---------- */
+.pad {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px;
+  display: flex; gap: 12px; z-index: 5;
+}
+.padbtn {
+  width: 150px; padding: 12px 8px; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(#232b38, #171d27); color: #e6ebf2;
+  border: 1px solid #313c4d; box-shadow: 0 4px 0 #10151d, 0 8px 18px rgba(0,0,0,.45);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  transition: transform .05s, box-shadow .05s, background .12s;
+  font-family: inherit;
+}
+.padbtn .big { font-size: 16px; font-weight: 700; letter-spacing: .5px; }
+.padbtn .sub { font-size: 10px; color: #8fa3bd; line-height: 1.3; text-align: center; }
+.padbtn.on {
+  background: linear-gradient(#3b82f6, #2563eb); border-color: #60a5fa;
+  transform: translateY(4px); box-shadow: 0 0 0 #10151d, 0 4px 14px rgba(59,130,246,.5);
+}
+.padbtn.on .sub { color: #dbeafe; }
+
+/* ---------- 툴바 ---------- */
+.toolbar {
+  position: fixed; right: 12px; top: 12px; display: flex; flex-wrap: wrap;
+  justify-content: flex-end; gap: 6px; max-width: 340px; z-index: 6;
+}
+.tool {
+  padding: 6px 10px; font-size: 11px; border-radius: 7px; cursor: pointer;
+  background: rgba(20,26,36,.86); color: #cbd5e1; border: 1px solid #2b3547;
+  font-family: inherit;
+}
+.tool:hover { background: #1d2531; }
+.tool.active { background: #2563eb; border-color: #60a5fa; color: #fff; }
+.tool.accent { background: #1f2937; border-color: #475569; }
+
+/* ---------- 튜닝 패널 ---------- */
+.panel {
+  position: fixed; right: 12px; top: 82px; bottom: 12px; width: 320px;
+  background: rgba(12,16,23,.94); border: 1px solid #232b38; border-radius: 10px;
+  overflow-y: auto; padding: 10px 12px 16px; display: none; z-index: 4;
+}
+.panel.open { display: block; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.sec { margin-top: 12px; }
+.sec-title {
+  font-size: 11px; font-weight: 700; color: #7dd3fc; letter-spacing: .4px;
+  border-bottom: 1px solid #232b38; padding-bottom: 4px; margin-bottom: 6px;
+}
+.srow { display: grid; grid-template-columns: 118px 1fr 44px; align-items: center; gap: 6px; padding: 2px 0; }
+.sname { font-size: 11px; color: #9fb0c6; }
+.sval { font-size: 11px; color: #e6ebf2; text-align: right; font-variant-numeric: tabular-nums; }
+.slider { width: 100%; accent-color: #3b82f6; }
+
+/* ---------- 승리 오버레이 ---------- */
+.overlay {
+  position: fixed; inset: 0; display: grid; place-content: center; pointer-events: none;
+  opacity: 0; transition: opacity .25s; z-index: 8;
+}
+.overlay.show { opacity: 1; }
+.overlay .win {
+  font-size: 68px; font-weight: 900; letter-spacing: 4px; color: #ffe066;
+  text-shadow: 0 6px 30px rgba(255,224,102,.55); text-align: center;
+}
+.overlay .win span { display: block; font-size: 15px; font-weight: 600; color: #e6ebf2; letter-spacing: 0; margin-top: 6px; }
+
+@media (max-width: 820px) {
+  .padbtn { width: 108px; }
+  .panel { width: 280px; }
+  .hud { width: 200px; font-size: 11px; }
+}
