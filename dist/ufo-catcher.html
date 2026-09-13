@@ -169,7 +169,7 @@ const DEFAULTS = {
   // ---- 봉(bar) 배치 ----
   barRadius: 0.009,      // 봉 반지름 (1.8cm 굵기)
   barLength: 0.92,       // 봉 길이 (좌우축 X 방향)
-  barGapZ: 0.130,        // 2번-3번 봉 중심 간격 (틈). 실효 틈 = 이 값 - 2*barRadius = 11.2cm
+  barGapZ: 0.134,        // 2번-3번 봉 중심 간격 (틈). 실효 틈 = 이 값 - 2*barRadius = 11.6cm
   barOuterZ: 0.160,      // 1번/4번 봉 중심의 |z|
   barLowY: 0.55,         // 2·3번 봉 중심 높이
   // 1·4번 봉이 2·3번보다 높은 양.
@@ -286,7 +286,7 @@ const FIGURES = [
     name: '1번',
     values: {
       boxW: 0.12, boxH: 0.10, boxD: 0.20,               // 박스 크기
-      barGapZ: 0.130, barOuterZ: 0.160, barRaise: 0.045, // 봉 위치
+      barGapZ: 0.134, barOuterZ: 0.160, barRaise: 0.045, // 봉 위치
       boxArt: 'lumina',                                  // 박스 디자인
     },
   },
@@ -357,7 +357,7 @@ const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v29';
+const KEY = 'ufo-catcher-cfg-v30';
 
 function loadConfig() {
   const cfg = { ...DEFAULTS };
