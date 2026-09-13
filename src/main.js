@@ -137,7 +137,6 @@ window.__ufo = {
       box: { x: +t.x.toFixed(3), y: +t.y.toFixed(3), z: +t.z.toFixed(3) },
       tiltXdeg: +(e.x * 180 / Math.PI).toFixed(1),
       bars: game.barContacts(),
-      grip: game.lastGrip,
     };
   },
 

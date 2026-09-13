@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { boxArtMaterials } from './figurebox.js';
 
 /**
  * 빳빳한 종이 상자의 "눌리면 들어갔다가 되돌아오는" 변형.
@@ -124,7 +125,7 @@ export class PaperDeform {
   }
 }
 
-/** 빳빳한 종이 느낌의 상품 박스 메쉬 */
+/** 빳빳한 종이 느낌의 상품 박스 메쉬. cfg.boxArt 가 있으면 인쇄면 텍스처를 입힌다. */
 export function makePaperBoxMesh(cfg) {
   // 눌림이 보이려면 면 분할이 필요하다
   const seg = (len) => Math.max(4, Math.min(14, Math.round(len / 0.018)));
@@ -132,6 +133,15 @@ export function makePaperBoxMesh(cfg) {
     cfg.boxW, cfg.boxH, cfg.boxD,
     seg(cfg.boxW), seg(cfg.boxH), seg(cfg.boxD)
   );
+
+  const art = boxArtMaterials(cfg);
+  if (art) {
+    const mesh = new THREE.Mesh(geo, art);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
   const mat = new THREE.MeshStandardMaterial({
     color: 0xe05a52,       // 인쇄된 판지
     roughness: 0.94,

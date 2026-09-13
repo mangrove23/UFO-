@@ -78,11 +78,6 @@ export class Machine {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       this.group.add(mesh);
-
-      // 1·2번, 3·4번이 화면에서 겹치지 않게 라벨을 번갈아 밀어 둔다
-      const tag = makeLabel(String(b.n));
-      tag.position.set(cfg.barLength / 2 + 0.035 + (b.n % 2 ? 0.055 : 0), b.y + 0.02, b.z);
-      this.group.add(tag);
     }
 
     const matShelf = new THREE.MeshStandardMaterial({ color: 0x2e3440, roughness: 0.8, metalness: 0.15 });
@@ -193,21 +188,4 @@ export class Machine {
       if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose());
     });
   }
-}
-
-function makeLabel(text) {
-  const c = document.createElement('canvas');
-  c.width = c.height = 64;
-  const g = c.getContext('2d');
-  g.fillStyle = '#0b0e13';
-  g.fillRect(0, 0, 64, 64);
-  g.fillStyle = '#ffd166';
-  g.font = 'bold 44px sans-serif';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(text, 32, 34);
-  const tex = new THREE.CanvasTexture(c);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
-  sp.scale.set(0.05, 0.05, 0.05);
-  return sp;
 }

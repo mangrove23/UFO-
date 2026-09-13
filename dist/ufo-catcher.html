@@ -17,6 +17,28 @@ canvas { display: block; }
   background: rgba(14, 18, 26, .82); border: 1px solid #232b38; border-radius: 10px;
   backdrop-filter: blur(6px); font-size: 12px;
 }
+.hud-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; margin: 0; padding: 2px 0; background: none; border: 0; cursor: pointer;
+  color: #e6ebf2; font: inherit; font-weight: 600; text-align: left;
+}
+.hud-head b { font-weight: 600; }
+.hud-caret {
+  flex: none; width: 8px; height: 8px; margin: 0 2px 3px;
+  border-right: 2px solid #8fa3bd; border-bottom: 2px solid #8fa3bd;
+  transform: rotate(45deg); transition: transform .15s;
+}
+.hud-head:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 3px; border-radius: 4px; }
+.hud-body { margin-top: 4px; }
+.hud.collapsed .hud-body { display: none; }
+
+/* ---------- 플레이 모드 / 개발자 모드 ----------
+   body.dev 가 없으면(플레이 모드) 개발용 요소를 숨기고, HUD 는 상태 문구 한 줄만 남긴다. */
+body:not(.dev) .dev-only { display: none !important; }
+body:not(.dev) .hud-body,
+body:not(.dev) .hud-caret { display: none; }
+body:not(.dev) .hud-head { cursor: default; }
+.hud.collapsed .hud-caret { transform: rotate(-45deg); margin-bottom: 0; }
 .hud hr { border: 0; border-top: 1px solid #232b38; margin: 7px 0; }
 .hud .row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
 .hud .row span { color: #8fa3bd; }
@@ -24,8 +46,6 @@ canvas { display: block; }
 .hud .row.wrap { display: block; }
 .hud .row.wrap b { display: block; text-align: left; white-space: normal; font-size: 11px; }
 .hud .muted { color: #7c8ba1; }
-.hud .good { color: #4ade80 !important; }
-.hud .bad { color: #fb7185 !important; }
 
 /* ---------- 조작 버튼 ---------- */
 .pad {
@@ -62,6 +82,23 @@ canvas { display: block; }
 .tool.active { background: #2563eb; border-color: #60a5fa; color: #fff; }
 .tool.accent { background: #1f2937; border-color: #475569; }
 
+/* 피규어 종류 선택 — 툴바 맨 아래 한 줄 */
+.figures {
+  flex-basis: 100%; display: flex; flex-wrap: wrap; justify-content: flex-end;
+  align-items: center; gap: 6px;
+}
+.figures-label { font-size: 11px; color: #8fa3bd; margin-right: 2px; }
+.tool.figure { min-width: 44px; }
+
+/* 모드 전환 알림 */
+.toast {
+  position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%);
+  padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 700;
+  background: rgba(10, 13, 19, .9); border: 1px solid #2b3547; color: #e6ebf2;
+  opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 9;
+}
+.toast.show { opacity: 1; }
+
 /* ---------- 튜닝 패널 ---------- */
 .panel {
   position: fixed; right: 12px; top: 82px; bottom: 12px; width: 320px;
@@ -85,14 +122,16 @@ canvas { display: block; }
   position: fixed; inset: 0; display: grid; place-content: center; pointer-events: none;
   opacity: 0; transition: opacity .25s; z-index: 8;
 }
-.overlay.show { opacity: 1; pointer-events: auto; }
+.overlay.show { opacity: 1; }
+/* 오버레이가 떠 있어도 캔버스를 계속 돌릴 수 있어야 한다.
+   패널은 포인터를 통과시키고, 다시하기 버튼만 클릭을 받는다. */
 .overlay .win {
   font-size: 56px; font-weight: 900; letter-spacing: 2px; color: #ffe066;
   text-shadow: 0 6px 30px rgba(255,224,102,.55); text-align: center;
   padding: 34px 56px 30px; border-radius: 18px;
   background: rgba(10, 13, 19, .82); border: 1px solid #2b3547;
-  backdrop-filter: blur(8px);
   box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  pointer-events: none;
 }
 .overlay .win span { display: block; font-size: 15px; font-weight: 600; color: #e6ebf2; letter-spacing: 0; margin-top: 8px; }
 .overlay .restart {
@@ -101,6 +140,7 @@ canvas { display: block; }
   color: #0b0e13; background: linear-gradient(#ffe066, #f6c531); border: 1px solid #fff3bf;
   box-shadow: 0 4px 0 #b58b16, 0 10px 24px rgba(0,0,0,.5);
   transition: transform .05s, box-shadow .05s;
+  pointer-events: auto;
 }
 .overlay .restart:hover { background: linear-gradient(#fff3bf, #ffe066); }
 .overlay .restart:active { transform: translateY(4px); box-shadow: 0 0 0 #b58b16, 0 4px 14px rgba(0,0,0,.5); }
@@ -111,7 +151,6 @@ canvas { display: block; }
   .panel { width: 280px; }
   .hud { width: 200px; font-size: 11px; }
 }
-
 </style>
 <div id="boot">물리 엔진 로딩 중…</div>
 <script type="module">
@@ -152,6 +191,7 @@ const DEFAULTS = {
   boxRestitution: 0.02,
   boxLinDamp: 0.15,
   boxAngDamp: 0.25,
+  boxArt: 'lumina',      // 박스 인쇄면 디자인 (src/figurebox.js 의 ARTS 키). 없는 키면 단색 박스
 
   // ---- 종이 찌그러짐 (시각 전용, 물리 형상은 강체 유지) ----
   paperDent: 0.014,      // 최대 눌림 깊이
@@ -161,27 +201,29 @@ const DEFAULTS = {
 
   // ---- 집게 ----
   // 벌림각 spread: 0 = 두 발끝이 정중앙에서 맞닿음, 클수록 벌어짐.
-  clawPivotX: 0.100,     // 발 회전축의 |x| (= 발끝이 안쪽으로 뻗는 길이와 동일)
-  clawArmLen: 0.170,     // 발(팔) 전체 길이
-  // 팔은 팔꿈치에서 꺾여, 두 팔이 마름모를 이룬다 (실기와 같은 형태).
-  clawElbowOut: 0.035,   // 팔꿈치가 바깥으로 벌어지는 양
-  clawElbowAt: 0.45,     // 팔꿈치 높이 (팔 길이 대비 비율)
-  clawTipThick: 0.006,   // 발끝 판 두께의 절반 (납작한 판)
-  clawTipWidth: 0.021,   // 발끝 판 폭의 절반 (Z 방향)
-  // 발가락(안쪽으로 꺾인 판) 길이의 절반.
+  // 팔은 팔꿈치에서 직각으로 꺾인 ㄱ자다. 아래 치수는 "벌린 상태(⊓ 자)" 기준이며,
+  // 오므리면 발끝이 정중앙에서 맞닿는 마름모가 된다. 벌림각은 형상에서 자동 계산.
+  clawPivotX: 0.0948,    // 발 회전축의 |x| (캡슐 헤드 양 끝의 5시·7시 위치. 헤드 길이도 여기서 정해진다)
+  clawElbowOut: 0.081,   // 축 → 팔꿈치 수평 길이 (벌린 상태)
+  clawArmLen: 0.1485,    // 팔꿈치 → 발끝 수직 길이 (벌린 상태)
+  clawTipThick: 0.00135, // 발끝 금속판 두께의 절반 (2.7mm 판)
+  clawTipWidth: 0.0144,  // 발끝 판 폭의 절반 (Z 방향)
+  // 발가락(안쪽으로 뻗은 판) 길이의 절반.
   // 발가락은 발(팔)의 안쪽 면에 붙어 있고 거기서부터 안쪽으로 뻗는다.
   // 따라서 이 값을 줄이면 박스 밑으로 파고드는 도달 거리도 같이 짧아진다.
-  clawTipLen: 0.0225,
-  clawOpenSpread: 0.55,  // 벌어졌을 때. 팔꿈치 때문에 더 벌리면 옆 유리에 닿는다
-  clawCloseSpread: 0.00,  // 발가락이 짧아져 서로 부딪히지 않으므로 끝까지 오므린다
+  clawTipLen: 0.02025,
+  clawTipRaise: 0.0027,  // 발바닥이 붙는 높이: 수직 팔 아래 끝에서 이만큼 위 (벌린 상태 기준)
+  clawCloseSpread: 0.00,  // 0 = 발끝이 맞닿은 마름모
   // 파지력은 "각도 오차 × 강성" 이 아니라 일정한 토크로 준다.
   // (모터 강성을 매 프레임 torque/오차 로 역산 → 박스 폭과 무관하게 힘이 일정)
-  clawGripTorque: 1.00,  // N·m. 발 하나가 박스를 무는 힘
-  clawSlipTorque: 1.00,  // grip 실패 시 토크
-  // grip 실패 시: 들어올리는 도중 모터가 버티지 못하고 발이 이만큼 벌어진다.
-  // (실기에서도 상승 직후 파지압이 빠지면서 놓친다)
-  clawSlipSpread: 0.20,
-  clawSlipDelay: 0.40,   // 오므린 뒤 이 시간이 지나면 벌어짐
+  // N·m. 발 하나가 오므리는 힘 (들어올리는 힘과는 별개 — 헤드 상승은 kinematic 이라 무제한).
+  // 들어올리는 동안 박스 무게에 발이 벌어지지 않게 버티는 힘이기도 하다.
+  // 측정: 0.10 이하면 박스를 못 들고, 1.0 이면 발이 모서리에 걸릴 때 박스를 튕겨 낸다
+  // (0.55 m/s, 7 rad/s). 0.20 은 튕김이 거의 없고(0.03 m/s) 들기에는 2배 여유.
+  clawGripTorque: 0.20,
+  // N·m. 아무것에도 닿지 않은 발을 개폐 속도(clawMotorSpeed)대로 움직이는 구동력.
+  // 파지 토크와 분리되어 있어, 파지력을 약하게 해도 벌리고 오므리는 속도는 그대로다.
+  clawMoveTorque: 1.00,
   clawGripDamping: 0.35,
   clawMaxStiffness: 400, // 역산 강성 상한 (수치 안정용)
   clawFingerMass: 0.18,
@@ -192,6 +234,10 @@ const DEFAULTS = {
   clawSpeedZ: 0.19,
   clawSpeedDown: 0.15,
   clawSpeedUp: 0.22,
+  clawPause: 1.0,        // 자동 시퀀스의 각 동작 사이 멈춤 시간 (s)
+  // 하강하면서 집게가 수직축을 중심으로 도는 각도(도, 위에서 봤을 때 시계방향이 +).
+  // 끝까지 내려갔을 때 이 각도가 된다. 잡고 올리고 옮기는 동안 유지되고, 벌린 뒤 복귀하며 풀린다.
+  clawDescendYaw: 7,
   // 접촉 후에도 더 내려가는 양. 0 이면 닿는 즉시 정지하고, 이 경우 기법 B(눌러서
   // 떨어뜨리기)가 물리적으로 불가능하다. 실제 기계도 관성 때문에 조금 더 눌린다.
   descendOvertravel: 0.005,
@@ -206,12 +252,11 @@ const DEFAULTS = {
   homeZ: 0.16,           // 1번 봉 위. 여기서 출발하고 여기로 복귀한다
   limitX: 0.28,          // cabW(0.50) - 벌렸을 때 팔 최대반경(약 0.199) - 여유
   limitZfront: 0.32,
-  limitZback: -0.185,     // 4번 봉 뒤 진열대에는 못 간다
-
-  // ---- grip 실패 확률 ----
-  gripFailBase: 0.50,    // 파지 품질이 0일 때의 실패 확률
-  gripFailMin: 0.30,     // 완벽하게 잡았을 때의 실패 확률
-  gripEdgeMargin: 0.016, // 발가락이 박스 밑으로 파고들 수 있는 최대 깊이(약 1.6cm)에 맞춘 판정 스케일
+  // 4번 봉(z=-0.16)과 진열대 앞 모서리(z≈-0.259) 사이까지 간다.
+  // 하강 회전(clawDescendYaw 7°)으로 다리 하나는 뒤(진열대 쪽), 하나는 앞(4번 봉 쪽)으로 돈다.
+  // 측정(7°): -0.220 은 진열대 모서리에 스침, -0.215 ~ -0.210 통과, -0.205 는 4번 봉에 걸림.
+  // 그 가운데 값. 회전 각도를 바꾸면 이 범위도 달라진다. 진열대 위로는 못 간다.
+  limitZback: -0.212,
 
   // ---- 기구/월드 ----
   cabW: 0.50,            // 캐비닛 반폭 |x|
@@ -231,6 +276,20 @@ const DEFAULTS = {
 function cabDepthFront(cfg) {
   return cfg.barOuterZ + cfg.barRadius + cfg.boxW + cfg.frontGap;
 }
+
+// 피규어 종류. 고르면 values 의 값(박스 크기·봉 위치)으로 세팅이 바뀌고 기구를 다시 만든다.
+// 새 종류는 여기에 { id, name, values } 를 추가하면 UI 에 번호 버튼이 자동으로 생긴다.
+const FIGURES = [
+  {
+    id: 1,
+    name: '1번',
+    values: {
+      boxW: 0.12, boxH: 0.10, boxD: 0.20,               // 박스 크기
+      barGapZ: 0.140, barOuterZ: 0.160, barRaise: 0.045, // 봉 위치
+      boxArt: 'lumina',                                  // 박스 디자인
+    },
+  },
+];
 
 // UI 패널 생성용 스키마
 const SCHEMA = [
@@ -263,33 +322,27 @@ const SCHEMA = [
     ['paperRecover', '복원 시정수', 0.02, 2.0, 0.02],
   ]},
   { group: '집게', items: [
-    ['clawGripTorque', '파지 토크(N·m)', 0.05, 4.0, 0.02],
-    ['clawSlipTorque', '실패 시 토크', 0.0, 1.5, 0.02],
-    ['clawSlipSpread', '실패 시 벌어짐(rad)', 0.0, 1.0, 0.02],
-    ['clawSlipDelay',  '실패 발현 지연(s)', 0.0, 2.0, 0.05],
+    ['clawGripTorque', '파지 토크(N·m, 접촉 시)', 0.05, 4.0, 0.02],
+    ['clawMoveTorque', '개폐 구동력(N·m, 비접촉)', 0.1, 4.0, 0.05],
     ['clawGripDamping', '파지 감쇠', 0, 3, 0.05],
-    ['clawOpenSpread',  '벌림각 — 열림(rad)', 0.1, 1.3, 0.01],
     ['clawCloseSpread', '벌림각 — 닫힘(rad)', 0.0, 0.8, 0.01],
     ['clawPivotX',   '발 축 간격 |x|', 0.03, 0.18, 0.005],
-    ['clawArmLen',   '팔 길이', 0.06, 0.28, 0.005],
-    ['clawElbowOut', '팔꿈치 벌어짐', 0.0, 0.09, 0.002],
-    ['clawElbowAt',  '팔꿈치 높이 비율', 0.15, 0.85, 0.01],
-    ['clawTipThick', '발끝 두께(절반)', 0.002, 0.03, 0.001],
+    ['clawElbowOut', '팔 수평 길이(벌림 기준)', 0.03, 0.16, 0.002],
+    ['clawArmLen',   '팔 수직 길이(벌림 기준)', 0.06, 0.28, 0.005],
+    ['clawTipThick', '발끝 두께(절반)', 0.0005, 0.01, 0.0005],
     ['clawTipWidth', '발끝 폭(절반)', 0.005, 0.06, 0.001],
     ['clawTipLen',   '발끝 길이(절반)', 0.008, 0.06, 0.001],
+    ['clawTipRaise', '발바닥 붙는 높이', 0.0, 0.06, 0.0005],
     ['clawFingerMass', '발 질량(kg)', 0.02, 1.0, 0.01],
     ['clawMotorSpeed', '개폐 속도', 0.5, 15, 0.1],
-  ]},
-  { group: 'grip 실패 확률', items: [
-    ['gripFailBase', '최악 파지 실패율', 0, 1, 0.01],
-    ['gripFailMin',  '최선 파지 실패율', 0, 1, 0.01],
-    ['gripEdgeMargin', '파지 깊이 판정 스케일', 0.004, 0.06, 0.001],
   ]},
   { group: '집게 이동', items: [
     ['clawSpeedX', '좌우 속도', 0.05, 1.0, 0.01],
     ['clawSpeedZ', '전후 속도', 0.05, 1.0, 0.01],
     ['clawSpeedDown', '하강 속도', 0.05, 1.0, 0.01],
     ['clawSpeedUp', '상승 속도', 0.05, 1.0, 0.01],
+    ['clawPause', '동작 사이 멈춤(s)', 0.0, 3.0, 0.05],
+    ['clawDescendYaw', '하강 시 회전(°, 시계방향+)', -20, 20, 0.5],
     ['clawMinY', '하강 한계(헤드 y)', 0.50, 0.95, 0.005],
     ['descendOvertravel', '접촉 후 추가 하강(누름)', 0.0, 0.08, 0.002],
     ['homeX', '홈 위치 x', -0.45, 0.45, 0.01],
@@ -303,7 +356,7 @@ const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v13';
+const KEY = 'ufo-catcher-cfg-v27';
 
 function loadConfig() {
   const cfg = { ...DEFAULTS };
@@ -483,6 +536,776 @@ class OrbitCam {
 }
 
 
+// ===== src/figurebox.js =====
+
+
+/**
+ * 상품 박스 인쇄면 텍스처.
+ * 아트에 imageDir 이 있으면 assets/boxart/<imageDir>/ 의 면별 PNG 를 입히고,
+ * 없거나 불러오지 못하면 여기서 캔버스로 그리는 오리지널 디자인을 쓴다.
+ *
+ * 디자인은 "실제 박스를 세워 둔" 방향으로 그린다:
+ *   front/back = 가로(boxW) × 세로(boxD), side = 두께(boxH) × 세로(boxD), top/bottom = 가로 × 두께
+ * 기계 안에서는 눕혀서 앞면이 위(+Y)이고, 박스 윗면은 기계 뒤쪽(−Z)을 향한다.
+ * 그래서 플레이어 쪽에서 앞면 그림이 똑바로 읽힌다. 각 면으로 옮길 때의 회전은 FACE_MAP 참고.
+ */
+
+const PX_PER_M = 6000;          // 12cm → 720px
+// 면별 인쇄 이미지 폴더 (페이지 기준 상대 경로). 파일: front/back/left/right/top/bottom.png
+const IMAGE_BASE = 'assets/boxart/';
+const cache = new Map();
+
+const FONT_EN = '"Segoe UI", "Helvetica Neue", Arial, sans-serif';
+const FONT_TITLE = '"Arial Black", "Segoe UI Black", "Helvetica Neue", Arial, sans-serif';
+const FONT_JP = '"Yu Gothic", "Hiragino Sans", "Noto Sans JP", "Malgun Gothic", sans-serif';
+
+const C = {
+  night: '#140a2c',
+  plum: '#3a1162',
+  magenta: '#ff3d9a',
+  pink: '#ff9ad5',
+  cyan: '#7ce8ff',
+  gold: '#ffd86b',
+  paper: '#f8f3fb',
+  ink: '#241536',
+};
+
+/** 박스 아트 재질 6개 (BoxGeometry 면 순서: +X, −X, +Y, −Y, +Z, −Z). 아트가 없으면 null */
+function boxArtMaterials(cfg) {
+  const art = ARTS[cfg.boxArt];
+  if (!art) return null;
+  const W = Math.round(cfg.boxW * PX_PER_M);   // 가로
+  const T = Math.round(cfg.boxH * PX_PER_M);   // 두께 (기계 안에서의 높이)
+  const L = Math.round(cfg.boxD * PX_PER_M);   // 세로 (가장 긴 변)
+  const key = `${cfg.boxArt}:${W}:${T}:${L}`;
+  if (!cache.has(key)) {
+    // [이미지 파일 이름, 캔버스 폭, 높이, 디자인→면 변환, 디자인 폭, 높이, 절차적 그리기]
+    const faces = [
+      ['right', L, T, [0, 1, -1, 0, L, 0], T, L, art.side],    // +X: 오른쪽 옆면 (위쪽 = −Z)
+      ['left', L, T, [0, -1, 1, 0, 0, T], T, L, art.side],     // −X: 왼쪽 옆면
+      ['front', W, L, [1, 0, 0, 1, 0, 0], W, L, art.front],    // +Y: 앞면
+      ['back', W, L, [-1, 0, 0, -1, W, L], W, L, art.back],    // −Y: 뒷면
+      // 양 끝면: 실제 박스처럼 윗면은 그림의 머리 쪽(기계 뒤 −Z), 바닥면은 발 쪽(플레이어 쪽 +Z).
+      // 글자는 각 끝면을 바깥에서 봤을 때 똑바로 읽히게 둔다.
+      ['bottom', W, T, [1, 0, 0, 1, 0, 0], W, T, art.bottom],   // +Z: 바닥면 (플레이어 쪽)
+      ['top', W, T, [1, 0, 0, 1, 0, 0], W, T, art.top],         // −Z: 윗면 (기계 뒤쪽)
+    ];
+    cache.set(key, faces.map(([name, cw, ch, m, dw, dh, draw]) => {
+      const canvas = face(cw, ch, m, dw, dh, draw);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      // 면별 이미지가 있으면 불러와 같은 방향 변환으로 덮어 그린다. 실패하면 절차적 디자인이 남는다.
+      if (art.imageDir) {
+        const img = new Image();
+        img.onload = () => {
+          const ctx = canvas.getContext('2d');
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, cw, ch);
+          ctx.setTransform(...m);
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, dw, dh);
+          tex.needsUpdate = true;
+        };
+        img.src = `${IMAGE_BASE}${art.imageDir}/${name}.png`;
+      }
+      return tex;
+    }));
+  }
+  // 코팅된 인쇄 판지: 살짝 광택
+  return cache.get(key).map((map) => new THREE.MeshStandardMaterial({ map, roughness: 0.55, metalness: 0 }));
+}
+
+/** 디버그용: 실제 박스 방향 그대로의 디자인 캔버스 */
+function boxArtDesigns(cfg) {
+  const art = ARTS[cfg.boxArt];
+  const W = Math.round(cfg.boxW * PX_PER_M), T = Math.round(cfg.boxH * PX_PER_M), L = Math.round(cfg.boxD * PX_PER_M);
+  const mk = (w, h, fn) => face(w, h, [1, 0, 0, 1, 0, 0], w, h, fn);
+  return { front: mk(W, L, art.front), back: mk(W, L, art.back), side: mk(T, L, art.side), top: mk(W, T, art.top), bottom: mk(W, T, art.bottom) };
+}
+
+function face(cw, ch, m, dw, dh, draw) {
+  const canvas = document.createElement('canvas');
+  canvas.width = cw; canvas.height = ch;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(...m);
+  draw(ctx, dw, dh);
+  return canvas;
+}
+
+// ============================================================ 공용 그리기 도구
+
+function rng(seed) {
+  return () => {
+    seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function spaced(ctx, px) { if ('letterSpacing' in ctx) ctx.letterSpacing = `${px}px`; }
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** 네 갈래 반짝임 */
+function sparkle(ctx, x, y, r, color = '#fff', glow = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  if (glow) { ctx.shadowColor = color; ctx.shadowBlur = glow; }
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  const k = r * 0.16;
+  ctx.moveTo(0, -r); ctx.quadraticCurveTo(k, -k, r, 0); ctx.quadraticCurveTo(k, k, 0, r);
+  ctx.quadraticCurveTo(-k, k, -r, 0); ctx.quadraticCurveTo(-k, -k, 0, -r);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** 다섯 꼭짓점 별 */
+function star5(ctx, x, y, r, inner = 0.45) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5;
+    const rr = i % 2 ? r * inner : r;
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.closePath();
+}
+
+/** 밤하늘 → 자홍 무대 배경 + 조명 + 보케 */
+function stageBackground(ctx, w, h, seed = 7) {
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, C.night);
+  g.addColorStop(0.45, C.plum);
+  g.addColorStop(0.8, '#8e1f7a');
+  g.addColorStop(1, '#d0357f');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+
+  // 무대 조명 줄기
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const ox = w * 0.5, oy = -h * 0.08;
+  for (let i = 0; i < 9; i++) {
+    const a = Math.PI / 2 + (i - 4) * 0.16;
+    const spread = 0.045;
+    const len = h * 1.3;
+    const lg = ctx.createLinearGradient(ox, oy, ox + Math.cos(a) * len, oy + Math.sin(a) * len);
+    lg.addColorStop(0, 'rgba(255,220,255,0.16)');
+    lg.addColorStop(1, 'rgba(255,220,255,0)');
+    ctx.fillStyle = lg;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(ox + Math.cos(a - spread) * len, oy + Math.sin(a - spread) * len);
+    ctx.lineTo(ox + Math.cos(a + spread) * len, oy + Math.sin(a + spread) * len);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // 보케
+  const r = rng(seed);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const unit = Math.min(w, h);
+  for (let i = 0; i < 34; i++) {
+    const x = r() * w, y = r() * h;
+    const rad = unit * (0.012 + r() * 0.05);
+    const col = r() < 0.6 ? '255,120,200' : (r() < 0.5 ? '124,232,255' : '255,216,107');
+    const rg = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    rg.addColorStop(0, `rgba(${col},${0.10 + r() * 0.18})`);
+    rg.addColorStop(0.7, `rgba(${col},${0.05 + r() * 0.06})`);
+    rg.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+  }
+  // 작은 반짝임
+  for (let i = 0; i < 22; i++) {
+    sparkle(ctx, r() * w, r() * h, unit * (0.006 + r() * 0.016), 'rgba(255,255,255,0.85)', unit * 0.02);
+  }
+  ctx.restore();
+}
+
+/** 홀로그램 박 띠 */
+function holoStrip(ctx, x, y, w, h, vertical = true) {
+  const g = vertical ? ctx.createLinearGradient(x, y, x, y + h) : ctx.createLinearGradient(x, y, x + w, y);
+  const stops = ['#ffd6f2', '#b9f3ff', '#fff3b0', '#e2c6ff', '#ffc4e4', '#c2fff1', '#ffe6a8'];
+  stops.forEach((s, i) => g.addColorStop(i / (stops.length - 1), s));
+  ctx.fillStyle = g;
+  ctx.fillRect(x, y, w, h);
+  // 미세한 사선 결
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = Math.max(1, Math.min(w, h) * 0.04);
+  const step = Math.min(w, h) * 0.35;
+  for (let t = -Math.max(w, h); t < Math.max(w, h) * 2; t += step) {
+    ctx.beginPath(); ctx.moveTo(x + t, y); ctx.lineTo(x + t - h, y + h); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * 아이돌 실루엣 (오리지널). 한 손을 높이 들어 검지를 세우고, 한 손은 허리에 올린 무대 포즈.
+ * 100 × 140 단위 좌표의 부위별 윤곽점 — 매끄러운 곡선으로 이어 부위마다 따로 칠해 합친다.
+ */
+const IDOL_UNITS = { w: 100, h: 140 };
+const IDOL_PARTS = [
+  // 긴 머리 (오른쪽으로 흩날림)
+  [[50, 13], [58, 14], [62, 20], [63, 30], [63.5, 40], [67, 50], [74, 58], [82, 63], [91, 68], [81, 71], [72, 67],
+    [65, 61], [58, 56], [42, 56], [36, 61], [30, 66], [23, 72], [27, 62], [32, 52], [35, 42], [36.5, 30], [38, 20], [43, 14.5]],
+  // 목
+  [[47, 33], [53, 33], [53.6, 41], [46.4, 41]],
+  // 몸통
+  [[40, 42], [60, 42], [62, 46], [59, 52], [55.5, 60], [56.5, 66], [43.5, 66], [44.5, 60], [41, 52], [38, 46]],
+  // 치마 (프릴 밑단)
+  [[44, 59], [56, 59], [62, 67], [68, 75], [74, 83], [68.5, 82.5], [64, 86.5], [59, 83], [54, 87.5], [49, 83.5],
+    [44, 87.5], [39, 83.5], [34, 86], [28, 84], [32, 76], [38, 67]],
+  // 곧게 선 다리 + 부츠
+  [[42.5, 83], [48.5, 83], [48, 100], [47.4, 112], [48.3, 126], [47.6, 133.5], [36.5, 134.5], [37.5, 130.5],
+    [42.3, 126.5], [42.8, 112], [42.2, 100]],
+  // 무릎을 굽힌 다리 + 부츠
+  [[52, 83], [58, 83], [62.5, 95], [63.5, 104], [61.5, 114], [59.5, 125.5], [64.5, 130.5], [65.5, 134.5],
+    [54.3, 134.8], [54.8, 126.5], [56.3, 114], [57, 104], [53.5, 94]],
+  // 들어 올린 팔 (검지)
+  [[58, 44], [63, 40], [67, 32], [70, 22], [72, 12], [73, 6], [73.4, 1.2], [75, 0.4], [75.7, 5.5], [76.6, 9.5],
+    [76, 14.5], [73.4, 24], [70.4, 34], [66.5, 44], [62, 49]],
+  // 허리에 올린 팔
+  [[40, 44], [35, 48], [30.5, 55], [32.5, 61.5], [40, 65.5], [45, 64.5], [44.2, 61], [38.5, 59], [36.4, 55], [39.3, 50], [42, 48]],
+];
+const IDOL_HEAD = { x: 50, y: 25.5, rx: 8.8, ry: 10.2 };
+const IDOL_SLEEVES = [[39, 45.5, 4.6], [61, 45, 4.6]];
+const IDOL_FINGERTIP = { x: 74.4, y: 0.4 };
+
+/** Catmull-Rom 을 베지어로 바꿔 닫힌 매끄러운 윤곽을 그린다 */
+function smoothClosed(ctx, pts) {
+  const n = pts.length;
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    const t = 1 / 6;
+    ctx.bezierCurveTo(
+      p1[0] + (p2[0] - p0[0]) * t, p1[1] + (p2[1] - p0[1]) * t,
+      p2[0] - (p3[0] - p1[0]) * t, p2[1] - (p3[1] - p1[1]) * t,
+      p2[0], p2[1]
+    );
+  }
+  ctx.closePath();
+}
+
+/** 실루엣 마스크 (흰색) — 단위 좌표 1 = scale px, 여백 pad px */
+function idolMask(scale, pad) {
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(IDOL_UNITS.w * scale + pad * 2);
+  c.height = Math.ceil(IDOL_UNITS.h * scale + pad * 2);
+  const x = c.getContext('2d');
+  x.translate(pad, pad);
+  x.scale(scale, scale);
+  x.fillStyle = '#fff';
+  for (const part of IDOL_PARTS) { x.beginPath(); smoothClosed(x, part); x.fill(); }
+  x.beginPath(); x.ellipse(IDOL_HEAD.x, IDOL_HEAD.y, IDOL_HEAD.rx, IDOL_HEAD.ry, -0.08, 0, Math.PI * 2); x.fill();
+  for (const [sx, sy, r] of IDOL_SLEEVES) { x.beginPath(); x.arc(sx, sy, r, 0, Math.PI * 2); x.fill(); }
+  return c;
+}
+
+function tinted(mask, paint) {
+  const c = document.createElement('canvas');
+  c.width = mask.width; c.height = mask.height;
+  const x = c.getContext('2d');
+  x.drawImage(mask, 0, 0);
+  x.globalCompositeOperation = 'source-in';
+  paint(x, c.width, c.height);
+  return c;
+}
+
+/**
+ * 실루엣 키비주얼: 어두운 몸체 + 윤곽 바깥쪽에만 생기는 림라이트(오른쪽 위 분홍, 왼쪽 청록).
+ * (cx, top) 은 실루엣 박스의 가운데 위, hgt 는 높이(px).
+ */
+function drawIdol(ctx, cx, top, hgt, { glow = true, hairClip = true } = {}) {
+  const scale = hgt / IDOL_UNITS.h;
+  const pad = Math.ceil(hgt * 0.04);
+  const mask = idolMask(scale, pad);
+
+  const body = tinted(mask, (x, w, h) => {
+    const g = x.createLinearGradient(w * 0.2, 0, w * 0.8, h);
+    g.addColorStop(0, '#34185e'); g.addColorStop(0.5, '#1a0c36'); g.addColorStop(1, '#0d0620');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+  });
+  const rim = (color, dx, dy) => {
+    const c = tinted(mask, (x, w, h) => { x.fillStyle = color; x.fillRect(0, 0, w, h); });
+    const x = c.getContext('2d');
+    x.globalCompositeOperation = 'destination-out';
+    x.drawImage(mask, dx, dy);
+    return c;
+  };
+  const d = Math.max(1, hgt * 0.009);
+  const rimPink = rim('#ffb3e6', -d, d);
+  const rimCyan = rim('rgba(124,232,255,0.8)', d * 0.8, 0);
+
+  const ox = cx - (IDOL_UNITS.w / 2) * scale - pad, oy = top - pad;
+  ctx.save();
+  if (glow) { ctx.shadowColor = 'rgba(255,80,190,0.85)'; ctx.shadowBlur = hgt * 0.07; }
+  ctx.drawImage(body, ox, oy);
+  ctx.shadowBlur = 0;
+  ctx.drawImage(rimCyan, ox, oy);
+  ctx.drawImage(rimPink, ox, oy);
+  if (hairClip) {
+    ctx.fillStyle = C.gold;
+    ctx.shadowColor = C.gold; ctx.shadowBlur = hgt * 0.02;
+    star5(ctx, ox + pad + 57.5 * scale, oy + pad + 17.5 * scale, 3.2 * scale);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** 제목 로고타입 */
+function titleLogo(ctx, cx, cy, size, { sub = true, maxWidth = Infinity } = {}) {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  const word = 'LUMINA';
+  ctx.font = `italic 900 ${size}px ${FONT_TITLE}`;
+  spaced(ctx, size * 0.02);
+  // 실제 글자 폭을 재서 주어진 폭 안에 들어가게 줄인다 (외곽선 두께 포함)
+  const measured = ctx.measureText(word).width + size * 0.2;
+  if (measured > maxWidth) {
+    size *= maxWidth / measured;
+    ctx.font = `italic 900 ${size}px ${FONT_TITLE}`;
+    spaced(ctx, size * 0.02);
+  }
+  ctx.lineJoin = 'round';
+  // 그림자 + 두꺼운 외곽
+  ctx.shadowColor = 'rgba(40,0,60,0.6)';
+  ctx.shadowBlur = size * 0.18;
+  ctx.shadowOffsetY = size * 0.05;
+  ctx.strokeStyle = C.night;
+  ctx.lineWidth = size * 0.2;
+  ctx.strokeText(word, cx, cy);
+  ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = size * 0.09;
+  ctx.strokeText(word, cx, cy);
+  const g = ctx.createLinearGradient(0, cy - size * 0.8, 0, cy);
+  g.addColorStop(0, '#fff6c9');
+  g.addColorStop(0.45, C.gold);
+  g.addColorStop(0.55, '#ff8fcb');
+  g.addColorStop(1, C.magenta);
+  ctx.fillStyle = g;
+  ctx.fillText(word, cx, cy);
+  // 로고 위 반짝임
+  const wText = ctx.measureText(word).width;
+  sparkle(ctx, cx + wText * 0.5 - size * 0.05, cy - size * 0.78, size * 0.26, '#fff', size * 0.3);
+  sparkle(ctx, cx - wText * 0.5 + size * 0.1, cy - size * 0.05, size * 0.14, '#fff', size * 0.2);
+
+  if (sub) {
+    ctx.font = `italic 600 ${size * 0.24}px ${FONT_EN}`;
+    spaced(ctx, size * 0.05);
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(255,80,180,0.9)';
+    ctx.shadowBlur = size * 0.12;
+    ctx.fillText('— Starlight Stage —', cx, cy + size * 0.42);
+  }
+  ctx.restore();
+}
+
+function brandMark(ctx, x, y, size, color = '#ffffff', align = 'left') {
+  ctx.save();
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  ctx.font = `800 ${size}px ${FONT_EN}`;
+  spaced(ctx, size * 0.12);
+  ctx.fillStyle = color;
+  const text = 'PRISMA';
+  const tail = 'PRIZE';
+  const w1 = ctx.measureText(text).width;
+  ctx.font = `300 ${size}px ${FONT_EN}`;
+  const w2 = ctx.measureText(tail).width;
+  const gap = size * 0.9;
+  const total = w1 + gap + w2;
+  const left = align === 'center' ? x - total / 2 : (align === 'right' ? x - total : x);
+  ctx.textAlign = 'left';
+  ctx.font = `800 ${size}px ${FONT_EN}`;
+  ctx.fillText(text, left, y);
+  ctx.fillStyle = C.gold;
+  star5(ctx, left + w1 + gap / 2, y, size * 0.36);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.font = `300 ${size}px ${FONT_EN}`;
+  ctx.fillText(tail, left + w1 + gap, y);
+  ctx.restore();
+}
+
+function chip(ctx, x, y, text, size, { bg = '#ffffff', fg = C.ink, align = 'left' } = {}) {
+  ctx.save();
+  ctx.font = `800 ${size}px ${FONT_EN}`;
+  spaced(ctx, size * 0.14);
+  const tw = ctx.measureText(text).width;
+  const padX = size * 0.7, h = size * 1.7;
+  const w = tw + padX * 2;
+  const left = align === 'center' ? x - w / 2 : (align === 'right' ? x - w : x);
+  roundRect(ctx, left, y, w, h, h / 2);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.fillStyle = fg;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, left + padX, y + h / 2 + size * 0.04);
+  ctx.restore();
+  return w;
+}
+
+function barcode(ctx, x, y, w, h, seed = 3) {
+  const r = rng(seed);
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x, y, w, h);
+  const innerX = x + w * 0.08, innerW = w * 0.84, barH = h * 0.72;
+  let cur = innerX;
+  ctx.fillStyle = '#111';
+  // 바와 공백을 번갈아 (폭 1~3 모듈) — 실제 EAN 처럼 촘촘하게
+  const module = innerW / 95;
+  let bar = true;
+  while (cur < innerX + innerW) {
+    const mw = module * (1 + Math.floor(r() * 3));
+    if (bar) ctx.fillRect(cur, y + h * 0.08, Math.min(mw, innerX + innerW - cur), barH);
+    cur += mw;
+    bar = !bar;
+  }
+  const fs = Math.min(h * 0.14, w * 0.075);
+  ctx.font = `500 ${fs}px ${FONT_EN}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  spaced(ctx, fs * 0.15);
+  ctx.fillText('4 999999 012345', x + w / 2, y + h * 0.95, w * 0.92);
+  ctx.restore();
+}
+
+// ============================================================ LUMINA 박스
+
+const lumina = {
+  // 면별 이미지 (AI 로 생성한 캐릭터 일러스트 박스). 이미지가 없을 때만 아래 절차적 디자인을 쓴다.
+  imageDir: 'lumina',
+
+  front(ctx, w, h) {
+    stageBackground(ctx, w, h, 11);
+
+    // 뒤쪽 큰 별 광배
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const cy = h * 0.4;
+    const halo = ctx.createRadialGradient(w * 0.5, cy, 0, w * 0.5, cy, w * 0.62);
+    halo.addColorStop(0, 'rgba(255,170,230,0.55)');
+    halo.addColorStop(0.35, 'rgba(255,90,190,0.25)');
+    halo.addColorStop(1, 'rgba(255,90,190,0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(255,220,250,0.35)';
+    ctx.lineWidth = w * 0.006;
+    star5(ctx, w * 0.5, cy, w * 0.44, 0.42);
+    ctx.stroke();
+    ctx.lineWidth = w * 0.003;
+    star5(ctx, w * 0.5, cy, w * 0.5, 0.42);
+    ctx.stroke();
+    ctx.restore();
+
+    // 무대 바닥 빛
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const fy = h * 0.735;
+    const floor = ctx.createRadialGradient(w * 0.5, fy, 0, w * 0.5, fy, w * 0.42);
+    floor.addColorStop(0, 'rgba(255,240,255,0.7)');
+    floor.addColorStop(0.3, 'rgba(255,120,210,0.35)');
+    floor.addColorStop(1, 'rgba(255,120,210,0)');
+    ctx.fillStyle = floor;
+    ctx.save();
+    ctx.translate(w * 0.5, fy); ctx.scale(1, 0.22); ctx.translate(-w * 0.5, -fy);
+    ctx.beginPath(); ctx.arc(w * 0.5, fy, w * 0.42, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.restore();
+
+    // 실루엣 키비주얼
+    const figH = h * 0.6, figTop = h * 0.13;
+    drawIdol(ctx, w * 0.47, figTop, figH);
+    // 들어 올린 손끝의 별
+    const s = figH / IDOL_UNITS.h;
+    const tipX = w * 0.47 + (IDOL_FINGERTIP.x - IDOL_UNITS.w / 2) * s, tipY = figTop + IDOL_FINGERTIP.y * s - w * 0.03;
+    sparkle(ctx, tipX, tipY, w * 0.075, '#ffffff', w * 0.08);
+    ctx.save(); ctx.fillStyle = C.gold; ctx.shadowColor = C.gold; ctx.shadowBlur = w * 0.04;
+    star5(ctx, tipX, tipY, w * 0.03); ctx.fill(); ctx.restore();
+
+    // 왼쪽 세로 홀로그램 띠 + 세로 문구
+    holoStrip(ctx, 0, 0, w * 0.045, h, true);
+    ctx.save();
+    ctx.translate(w * 0.024, h * 0.5);
+    ctx.rotate(-Math.PI / 2);
+    ctx.font = `700 ${w * 0.024}px ${FONT_EN}`;
+    spaced(ctx, w * 0.012);
+    ctx.fillStyle = 'rgba(60,20,90,0.8)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('STARLIGHT STAGE COLLECTION  ·  No.01', 0, 0);
+    ctx.restore();
+
+    // 상단 배지들
+    chip(ctx, w * 0.085, h * 0.03, 'PRIZE FIGURE', w * 0.036, { bg: '#ffffff', fg: C.plum });
+    ctx.save();
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `800 ${w * 0.034}px ${FONT_JP}`;
+    ctx.fillText('全1種', w * 0.955, h * 0.034);
+    ctx.font = `600 ${w * 0.022}px ${FONT_EN}`;
+    spaced(ctx, w * 0.006);
+    ctx.globalAlpha = 0.8;
+    ctx.fillText('ALL 1 TYPE', w * 0.955, h * 0.034 + w * 0.045);
+    ctx.restore();
+
+    // 제목
+    titleLogo(ctx, w * 0.52, h * 0.84, w * 0.2);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = `700 ${w * 0.03}px ${FONT_JP}`;
+    spaced(ctx, w * 0.012);
+    ctx.fillText('ルミナ ‐ スターライトステージ ‐', w * 0.52, h * 0.915);
+    ctx.restore();
+
+    // 하단 정보 띠
+    const by = h * 0.94;
+    ctx.fillStyle = 'rgba(12,5,26,0.72)';
+    ctx.fillRect(0, by, w, h - by);
+    holoStrip(ctx, 0, by, w, h * 0.004, false);
+    brandMark(ctx, w * 0.075, by + (h - by) / 2, w * 0.03);
+    ctx.save();
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `600 ${w * 0.026}px ${FONT_EN}`;
+    spaced(ctx, w * 0.004);
+    ctx.fillText('FIGURE SIZE  approx. 20cm', w * 0.955, by + (h - by) / 2);
+    ctx.restore();
+  },
+
+  back(ctx, w, h) {
+    ctx.fillStyle = C.paper;
+    ctx.fillRect(0, 0, w, h);
+    // 옅은 별 무늬
+    ctx.save();
+    ctx.fillStyle = 'rgba(200,120,200,0.07)';
+    const r = rng(5);
+    for (let i = 0; i < 40; i++) { star5(ctx, r() * w, r() * h, w * (0.01 + r() * 0.03)); ctx.fill(); }
+    ctx.restore();
+
+    // 헤더
+    const hh = h * 0.16;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, w, hh); ctx.clip();
+    stageBackground(ctx, w, hh * 2.2, 23);
+    ctx.restore();
+    holoStrip(ctx, 0, hh, w, h * 0.006, false);
+    titleLogo(ctx, w * 0.5, hh * 0.62, w * 0.13, { sub: false });
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+    ctx.font = `italic 600 ${w * 0.03}px ${FONT_EN}`;
+    spaced(ctx, w * 0.008);
+    ctx.fillText('— Starlight Stage —', w * 0.5, hh * 0.86);
+    ctx.restore();
+
+    // 3면도 카드
+    const cardsTop = hh + h * 0.035;
+    const cw = w * 0.28, ch = h * 0.34, gap = (w - cw * 3) / 4;
+    const views = [['FRONT', 1], ['SIDE', 0.62], ['BACK', 1]];
+    views.forEach(([label, squeeze], i) => {
+      const x = gap + i * (cw + gap);
+      ctx.save();
+      roundRect(ctx, x, cardsTop, cw, ch, w * 0.02);
+      const cg = ctx.createLinearGradient(0, cardsTop, 0, cardsTop + ch);
+      cg.addColorStop(0, '#2a0f4e'); cg.addColorStop(1, '#8e1f7a');
+      ctx.fillStyle = cg;
+      ctx.fill();
+      ctx.clip();
+      ctx.globalCompositeOperation = 'lighter';
+      const rg = ctx.createRadialGradient(x + cw / 2, cardsTop + ch * 0.9, 0, x + cw / 2, cardsTop + ch * 0.9, cw * 0.6);
+      rg.addColorStop(0, 'rgba(255,160,220,0.6)'); rg.addColorStop(1, 'rgba(255,160,220,0)');
+      ctx.fillStyle = rg; ctx.fillRect(x, cardsTop, cw, ch);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.translate(x + cw / 2, 0);
+      ctx.scale(i === 2 ? -squeeze : squeeze, 1);
+      drawIdol(ctx, 0, cardsTop + ch * 0.1, ch * 0.8, { glow: false, hairClip: i !== 2 });
+      ctx.restore();
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = C.plum;
+      ctx.font = `800 ${w * 0.026}px ${FONT_EN}`;
+      spaced(ctx, w * 0.01);
+      ctx.fillText(label, x + cw / 2, cardsTop + ch + h * 0.028);
+      ctx.restore();
+    });
+
+    // 사양
+    let y = cardsTop + ch + h * 0.075;
+    ctx.save();
+    ctx.fillStyle = C.ink;
+    ctx.textBaseline = 'top';
+    const specs = [
+      ['商品名', 'LUMINA ‐Starlight Stage‐ フィギュア'],
+      ['サイズ', '全高 約20cm'],
+      ['素材', 'PVC・ABS'],
+      ['種類', '全1種'],
+    ];
+    const lx = w * 0.08, vx = w * 0.3;
+    specs.forEach(([k, v]) => {
+      ctx.font = `700 ${w * 0.03}px ${FONT_JP}`;
+      ctx.fillStyle = C.magenta;
+      ctx.fillText(k, lx, y);
+      ctx.font = `500 ${w * 0.03}px ${FONT_JP}`;
+      ctx.fillStyle = C.ink;
+      ctx.fillText(v, vx, y);
+      y += h * 0.028;
+    });
+    ctx.restore();
+
+    // 구분선
+    y += h * 0.01;
+    ctx.fillStyle = 'rgba(60,20,90,0.15)';
+    ctx.fillRect(w * 0.08, y, w * 0.84, Math.max(1, h * 0.0015));
+    y += h * 0.018;
+
+    // 주의 문구
+    ctx.save();
+    ctx.fillStyle = 'rgba(36,21,54,0.72)';
+    ctx.font = `500 ${w * 0.021}px ${FONT_JP}`;
+    ctx.textBaseline = 'top';
+    const notes = [
+      '●本品はプライズ専用景品です。販売はしておりません。',
+      '●対象年齢15才以上。小さな部品があります。',
+      '●火のそばに置かないでください。',
+      '●画像はイメージです。実際の商品とは異なる場合があります。',
+      'This item is a prize. Not for sale. Ages 15+.',
+    ];
+    notes.forEach((t) => { ctx.fillText(t, w * 0.08, y); y += h * 0.022; });
+    ctx.restore();
+
+    // 하단: 연령 마크, 재활용 마크, 바코드, 브랜드
+    const fy = h * 0.87;
+    ctx.save();
+    // 15+ 마크
+    ctx.lineWidth = w * 0.008;
+    ctx.strokeStyle = C.ink;
+    ctx.beginPath(); ctx.arc(w * 0.13, fy + h * 0.035, w * 0.05, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = C.ink;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `900 ${w * 0.04}px ${FONT_EN}`;
+    ctx.fillText('15+', w * 0.13, fy + h * 0.036);
+    // 종이 재활용 마크 (일반 도형)
+    const mx = w * 0.27, my = fy + h * 0.035, ms = w * 0.045;
+    ctx.beginPath();
+    ctx.moveTo(mx - ms, my + ms * 0.8); ctx.lineTo(mx, my - ms); ctx.lineTo(mx + ms, my + ms * 0.8); ctx.closePath();
+    ctx.lineWidth = w * 0.006; ctx.stroke();
+    ctx.font = `800 ${w * 0.03}px ${FONT_JP}`;
+    ctx.fillText('紙', mx, my + ms * 0.2);
+    ctx.restore();
+    barcode(ctx, w * 0.52, fy, w * 0.4, h * 0.08, 9);
+
+    ctx.fillStyle = C.plum;
+    ctx.fillRect(0, h * 0.965, w, h * 0.035);
+    brandMark(ctx, w * 0.5, h * 0.9825, w * 0.028, '#ffffff', 'center');
+  },
+
+  side(ctx, w, h) {
+    stageBackground(ctx, w, h, 31);
+    // 옆 모서리 홀로그램 띠
+    holoStrip(ctx, 0, 0, w * 0.035, h, true);
+    holoStrip(ctx, w * 0.965, 0, w * 0.035, h, true);
+
+    // 상단 번호 배지
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 ${w * 0.16}px ${FONT_TITLE}`;
+    ctx.shadowColor = 'rgba(255,80,180,0.9)';
+    ctx.shadowBlur = w * 0.08;
+    ctx.fillText('01', w * 0.5, h * 0.1);
+    ctx.shadowBlur = 0;
+    ctx.font = `700 ${w * 0.05}px ${FONT_EN}`;
+    spaced(ctx, w * 0.02);
+    ctx.fillText('PRIZE FIGURE', w * 0.5, h * 0.135);
+    ctx.restore();
+
+    // 실루엣
+    drawIdol(ctx, w * 0.5, h * 0.165, h * 0.25);
+
+    // 세로 제목 (아래 → 위로 읽힘). 글자 길이(약 3.9 × 크기)가 옆면 세로 공간에 들어가게 맞춘다.
+    const ts = w * 0.3;
+    ctx.save();
+    ctx.translate(w * 0.5, h * 0.69);
+    ctx.rotate(-Math.PI / 2);
+    titleLogo(ctx, 0, ts * 0.36, ts, { sub: false, maxWidth: h * 0.44 });
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(w * 0.84, h * 0.69);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.font = `italic 600 ${w * 0.06}px ${FONT_EN}`;
+    spaced(ctx, w * 0.02);
+    ctx.fillText('— Starlight Stage —', 0, 0);
+    ctx.restore();
+
+    // 하단 브랜드
+    ctx.fillStyle = 'rgba(12,5,26,0.72)';
+    ctx.fillRect(0, h * 0.95, w, h * 0.05);
+    brandMark(ctx, w * 0.5, h * 0.975, w * 0.06, '#ffffff', 'center');
+  },
+
+  top(ctx, w, h) {
+    stageBackground(ctx, w, h, 41);
+    holoStrip(ctx, 0, 0, w, h * 0.05, false);
+    holoStrip(ctx, 0, h * 0.95, w, h * 0.05, false);
+    titleLogo(ctx, w * 0.5, h * 0.58, w * 0.17, { sub: false });
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+    ctx.font = `italic 600 ${w * 0.04}px ${FONT_EN}`;
+    spaced(ctx, w * 0.01);
+    ctx.fillText('— Starlight Stage —', w * 0.5, h * 0.76);
+    ctx.restore();
+    chip(ctx, w * 0.5, h * 0.12, 'PRIZE FIGURE', w * 0.032, { bg: '#ffffff', fg: C.plum, align: 'center' });
+  },
+
+  bottom(ctx, w, h) {
+    ctx.fillStyle = C.paper;
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = C.plum;
+    ctx.fillRect(0, 0, w, h * 0.2);
+    holoStrip(ctx, 0, h * 0.2, w, h * 0.03, false);
+    brandMark(ctx, w * 0.5, h * 0.1, w * 0.04, '#ffffff', 'center');
+    titleLogo(ctx, w * 0.36, h * 0.62, w * 0.12, { sub: false });
+    ctx.save();
+    ctx.fillStyle = C.ink;
+    ctx.textAlign = 'center';
+    ctx.font = `700 ${w * 0.03}px ${FONT_JP}`;
+    ctx.fillText('プライズ専用景品', w * 0.36, h * 0.82);
+    ctx.restore();
+    barcode(ctx, w * 0.66, h * 0.38, w * 0.28, h * 0.46, 17);
+  },
+};
+
+const ARTS = { lumina };
+
+
 // ===== src/paperbox.js =====
 
 
@@ -610,7 +1433,7 @@ class PaperDeform {
   }
 }
 
-/** 빳빳한 종이 느낌의 상품 박스 메쉬 */
+/** 빳빳한 종이 느낌의 상품 박스 메쉬. cfg.boxArt 가 있으면 인쇄면 텍스처를 입힌다. */
 function makePaperBoxMesh(cfg) {
   // 눌림이 보이려면 면 분할이 필요하다
   const seg = (len) => Math.max(4, Math.min(14, Math.round(len / 0.018)));
@@ -618,6 +1441,15 @@ function makePaperBoxMesh(cfg) {
     cfg.boxW, cfg.boxH, cfg.boxD,
     seg(cfg.boxW), seg(cfg.boxH), seg(cfg.boxD)
   );
+
+  const art = boxArtMaterials(cfg);
+  if (art) {
+    const mesh = new THREE.Mesh(geo, art);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
   const mat = new THREE.MeshStandardMaterial({
     color: 0xe05a52,       // 인쇄된 판지
     roughness: 0.94,
@@ -717,11 +1549,6 @@ class Machine {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       this.group.add(mesh);
-
-      // 1·2번, 3·4번이 화면에서 겹치지 않게 라벨을 번갈아 밀어 둔다
-      const tag = makeLabel(String(b.n));
-      tag.position.set(cfg.barLength / 2 + 0.035 + (b.n % 2 ? 0.055 : 0), b.y + 0.02, b.z);
-      this.group.add(tag);
     }
 
     const matShelf = new THREE.MeshStandardMaterial({ color: 0x2e3440, roughness: 0.8, metalness: 0.15 });
@@ -834,34 +1661,21 @@ class Machine {
   }
 }
 
-function makeLabel(text) {
-  const c = document.createElement('canvas');
-  c.width = c.height = 64;
-  const g = c.getContext('2d');
-  g.fillStyle = '#0b0e13';
-  g.fillRect(0, 0, 64, 64);
-  g.fillStyle = '#ffd166';
-  g.font = 'bold 44px sans-serif';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(text, 32, 34);
-  const tex = new THREE.CanvasTexture(c);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
-  sp.scale.set(0.05, 0.05, 0.05);
-  return sp;
-}
-
 
 // ===== src/claw.js =====
 
 
-const ARM_HALF_X = 0.011; // 발(팔) 두께의 절반 — 발가락은 이 안쪽 면에 붙는다
+const ARM_HALF_X = 0.0099; // 발(팔) 두께의 절반 — 발가락은 이 안쪽 면에 붙는다
+const ARM_HALF_Z = 0.0162; // 발(팔) 앞뒤 폭의 절반
+const HEAD_RADIUS = 0.0408; // 캡슐 헤드의 반지름 (높이의 절반)
+const PIVOT_BELOW = Math.PI / 3; // 발 축 위치: 반구 중심에서 수평 아래 60° (시계의 5시/7시)
 
 /**
  * 집게.
  *  - 헤드: kinematic (버튼 입력으로 위치를 직접 지정)
  *  - 발 2개: dynamic 강체 + revolute 조인트 + 위치 모터
- *  - 발끝: 납작한 판 (얇고 넓게) — 박스 위를 누르거나 옆면을 무는 부분
+ *  - 팔: 투명 아크릴, 팔꿈치에서 직각으로 꺾인 ㄱ자 (벌리면 ⊓, 오므리면 마름모)
+ *  - 발끝: 아주 얇은 금속판 — 박스 밑으로 파고들거나 위를 누르는 부분
  *
  * 발은 X축(봉과 평행한 방향)으로 마주 보고 닫힌다.
  * 회전축은 Z축이고, 상태는 "벌림각 spread" 하나로 표현한다:
@@ -882,7 +1696,8 @@ class Claw {
     this.pos = new THREE.Vector3(cfg.homeX, cfg.clawTopY, cfg.homeZ);
     this.spread = cfg.clawCloseSpread;
     this.targetSpread = cfg.clawCloseSpread;
-    this.torque = cfg.clawGripTorque;
+    this.spreadVel = 0;
+    this.yaw = 0;          // 수직축 회전각(rad, 위에서 봤을 때 시계방향 +). Game 이 높이에 따라 정한다.
 
     this.group = new THREE.Group();
     scene.add(this.group);
@@ -897,21 +1712,30 @@ class Claw {
     const p = this.pos;
 
     const metal = new THREE.MeshStandardMaterial({ color: 0xc8ccd4, roughness: 0.28, metalness: 0.9 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x3a4150, roughness: 0.35, metalness: 0.75 });
+    // 헤드 외장: 광택 있는 은백색 플라스틱
+    const shell = new THREE.MeshPhysicalMaterial({
+      color: 0xe4e8ee, roughness: 0.22, metalness: 0.35, clearcoat: 1.0, clearcoatRoughness: 0.15,
+    });
     // 실기의 팔은 투명 아크릴이다
     const acrylic = new THREE.MeshPhysicalMaterial({
       color: 0xdfeaf5, transparent: true, opacity: 0.42,
       roughness: 0.08, metalness: 0.0, clearcoat: 1.0, side: THREE.DoubleSide,
     });
 
-    // ---- 헤드 (kinematic) ----
+    // ---- 헤드 (kinematic): 좌우로 누운 둥근 캡슐 ----
     this.head = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(p.x, p.y, p.z)
     );
-    const headHalf = { x: cfg.clawPivotX + 0.026, y: 0.028, z: 0.038 };
-    this.headHalf = headHalf;
-    const hc = this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(headHalf.x, headHalf.y, headHalf.z)
+    const headR = HEAD_RADIUS;
+    // 발 회전축은 캡슐 양 끝 반구의 5시·7시 위치(수평에서 60° 아래)에 있다.
+    // 축 간격(clawPivotX)을 기준으로 캡슐 원통부 길이를 역산한다.
+    const headHalfLen = Math.max(0.005, cfg.clawPivotX - headR * Math.cos(PIVOT_BELOW));  // 원통부 길이의 절반
+    this.pivotY = -headR * Math.sin(PIVOT_BELOW);
+    // Rapier 캡슐은 Y축 방향이므로 Z축으로 90° 눕힌다
+    const lay = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+    const hc = this.headCollider = this.world.createCollider(
+      RAPIER.ColliderDesc.capsule(headHalfLen, headR)
+        .setRotation({ x: lay.x, y: lay.y, z: lay.z, w: lay.w })
         .setFriction(0.4)
         .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
       this.head
@@ -919,51 +1743,76 @@ class Claw {
     this.myColliders.add(hc.handle);
     this.bodies.push(this.head);
 
-    this.headMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(headHalf.x * 2, headHalf.y * 2, headHalf.z * 2), dark);
+    const headGeo = new THREE.CapsuleGeometry(headR, headHalfLen * 2, 10, 28);
+    headGeo.rotateZ(Math.PI / 2);
+    this.headMesh = new THREE.Mesh(headGeo, shell);
     this.headMesh.castShadow = true;
+    // 앞면(플레이어 쪽) 장식 점 세 개
+    [0xe8467c, 0xf5c518, 0x2f8fd8].forEach((color, i) => {
+      const dot = new THREE.Mesh(
+        new THREE.CircleGeometry(headR * 0.2, 20),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.4 })
+      );
+      dot.position.set((i - 1) * headR * 0.55, headR * 0.12, headR + 0.0005);
+      this.headMesh.add(dot);
+    });
     this.group.add(this.headMesh);
 
     this.rodMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.0, 12), metal);
     this.group.add(this.rodMesh);
 
     // ---- 발 2개 ----
-    const armLen = cfg.clawArmLen;
+    // 팔 하나는 팔꿈치에서 직각으로 꺾인 ㄱ자 강체다. 치수는 "벌린 상태" 기준:
+    //   축 ──(수평, reach)── 팔꿈치
+    //                         │ (수직, drop)
+    //                         ┘ 발 아래 끝
+    // 두 발을 벌리면 ⊓ 자가 되어 각진 박스를 감싸기 좋고, 이 모양을 축 기준으로
+    // 안쪽으로 openSpread 만큼 돌리면 발끝이 정중앙에서 맞닿는 마름모가 된다.
+    //
+    // 발바닥(납작한 금속판)은 "오므린 상태"에서 수평이다. 판은 수직 팔의 안쪽 면,
+    // 아래 끝에서 clawTipRaise 만큼 올라간 지점에 붙어 안쪽으로 수평하게 뻗는다.
+    // 그 아래로는 팔 끝이 조금 삐져나온다. 벌리면 팔과 함께 돌아가 판이 안쪽 위로 기운다.
+    const reach = cfg.clawElbowOut;
+    const drop = cfg.clawArmLen;
     const tipThick = cfg.clawTipThick;
     const tipWidth = cfg.clawTipWidth;
-    const tipY = -(armLen - tipThick);
-    // 발가락 안쪽 끝이 정중앙(x=0)을 넘지 않도록 제한
-    const tipHalf = Math.min(cfg.clawTipLen, (cfg.clawPivotX - ARM_HALF_X) / 2);
-    this.tipY = tipY;
+    const tipHalf = cfg.clawTipLen;
+    const TIP_GAP = 0.001;   // 오므렸을 때 발끝과 정중앙 사이 (두 발가락이 서로 밀지 않게)
+
+    // 벌린 상태(오른발 기준)에서 발바닥이 붙는 점: 수직 팔 안쪽 면, 아래 끝에서 raise 위
+    const mountU = reach - ARM_HALF_X;
+    const mountV = drop - cfg.clawTipRaise;
+    // 오므린 상태에서 발바닥 안쪽 끝(= 붙는 점 x − 판 길이)이 x = TIP_GAP 에 오는 회전각:
+    //   mountV·sinθ − mountU·cosθ = pivotX − 판 길이 − TIP_GAP
+    const R = Math.hypot(mountU, mountV);
+    this.openSpread = Math.atan2(mountU, mountV)
+      + Math.asin(Math.max(-1, Math.min(1, (cfg.clawPivotX - tipHalf * 2 - TIP_GAP) / R)));
 
     this.fingers = [];
     for (const sign of [-1, +1]) {
       const px = sign * cfg.clawPivotX;
       const body = this.world.createRigidBody(
         RAPIER.RigidBodyDesc.dynamic()
-          .setTranslation(p.x + px, p.y, p.z)
+          .setTranslation(p.x + px, p.y + this.pivotY, p.z)
           .setCanSleep(false)
           .setAngularDamping(0.7)
       );
 
-      // 발가락은 발(팔)의 안쪽 면에 붙어서 안쪽으로 뻗는다.
-      // 바깥쪽 끝을 팔에 고정하므로, 길이를 줄이면 안쪽 도달 거리가 그만큼 짧아진다.
-      const tipX = -sign * (ARM_HALF_X + tipHalf);
+      // 조인트 각 0 = 오므린 상태이므로, 벌린 상태 좌표를 안쪽으로 openSpread 만큼 돌려 둔다
+      const rest = -sign * this.openSpread;
+      const cr = Math.cos(rest), sr = Math.sin(rest);
+      const toLocal = (x, y) => ({ x: x * cr - y * sr, y: x * sr + y * cr });
 
-      // ---- 팔: 팔꿈치에서 꺾인 2단 구조 ----
-      // 실기(SEGA UFO CATCHER)처럼 축에서 바깥으로 벌어졌다가 다시 안쪽으로 모여
-      // 두 팔이 마름모를 이룬다. 아래 끝은 다시 x=0 으로 돌아오므로 발가락 위치와
-      // 파지 계산은 그대로 유지된다.
-      const Ex = cfg.clawElbowOut;              // 팔꿈치가 바깥으로 벌어지는 양
-      const Ey = armLen * cfg.clawElbowAt;      // 팔꿈치 높이
+      // 팔꿈치 모서리가 비지 않도록 각 구간을 팔 두께의 절반만큼 연장한다
       const segments = [
-        [{ x: 0, y: 0 },          { x: sign * Ex, y: -Ey }],       // 축 → 팔꿈치 (바깥으로)
-        [{ x: sign * Ex, y: -Ey }, { x: 0, y: -armLen }],          // 팔꿈치 → 끝 (안쪽으로)
+        [{ x: 0, y: 0 },            { x: sign * (reach + ARM_HALF_X), y: 0 }],  // 축 → 팔꿈치 (수평)
+        [{ x: sign * reach, y: ARM_HALF_X }, { x: sign * reach, y: -drop }],    // 팔꿈치 → 끝 (수직)
       ];
 
       const armCols = [];
       const armMeshes = [];
-      for (const [a, b] of segments) {
+      for (const [a0, b0] of segments) {
+        const a = toLocal(a0.x, a0.y), b = toLocal(b0.x, b0.y);
         const dx = b.x - a.x, dy = b.y - a.y;
         const len = Math.hypot(dx, dy);
         // 기본 상자는 -Y 방향으로 서 있다. Z축으로 phi 만큼 돌려 세그먼트에 맞춘다.
@@ -972,7 +1821,7 @@ class Claw {
         const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), phi);
 
         armCols.push(this.world.createCollider(
-          RAPIER.ColliderDesc.cuboid(ARM_HALF_X, len / 2, 0.018)
+          RAPIER.ColliderDesc.cuboid(ARM_HALF_X, len / 2, ARM_HALF_Z)
             .setTranslation(mid.x, mid.y, 0)
             .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
             .setMass(cfg.clawFingerMass * 0.35)
@@ -983,17 +1832,20 @@ class Claw {
           body
         ));
 
-        const m = new THREE.Mesh(new THREE.BoxGeometry(ARM_HALF_X * 2, len, 0.036), acrylic);
+        const m = new THREE.Mesh(new THREE.BoxGeometry(ARM_HALF_X * 2, len, ARM_HALF_Z * 2), acrylic);
         m.position.set(mid.x, mid.y, 0);
         m.rotation.z = phi;
         m.castShadow = true;
         armMeshes.push(m);
       }
 
-      // 납작한 발끝 판
+      // 납작한 금속 발바닥: 조인트 각 0(오므림)에서 수평. 바깥 끝을 팔 속으로 조금 묻어 틈이 안 보이게 한다.
+      const mount = toLocal(sign * mountU, -mountV);
+      const tipLen = tipHalf * 2 + ARM_HALF_X;                     // 팔 속에 묻히는 길이 포함
+      const tip = { x: mount.x - sign * (tipHalf * 2 - tipLen / 2), y: mount.y };
       const tipCol = this.world.createCollider(
-        RAPIER.ColliderDesc.cuboid(tipHalf, tipThick, tipWidth)
-          .setTranslation(tipX, tipY, 0)
+        RAPIER.ColliderDesc.cuboid(tipLen / 2, tipThick, tipWidth)
+          .setTranslation(tip.x, tip.y, 0)
           .setMass(cfg.clawFingerMass * 0.3)
           .setFriction(cfg.frictionClaw)
           .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Multiply)
@@ -1006,7 +1858,7 @@ class Claw {
       this.bodies.push(body);
 
       const jd = RAPIER.JointData.revolute(
-        { x: px, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }
+        { x: px, y: this.pivotY, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }
       );
       const joint = this.world.createImpulseJoint(jd, this.head, body, true);
       if (typeof joint.setContactsEnabled === 'function') joint.setContactsEnabled(false);
@@ -1016,46 +1868,81 @@ class Claw {
 
       // 메쉬
       const g = new THREE.Group();
-      const tip = new THREE.Mesh(new THREE.BoxGeometry(tipHalf * 2, tipThick * 2, tipWidth * 2), dark);
-      tip.position.set(tipX, tipY, 0);
-      tip.castShadow = true;
-      g.add(...armMeshes, tip);
+      const tipMesh = new THREE.Mesh(new THREE.BoxGeometry(tipLen, tipThick * 2, tipWidth * 2), metal);
+      tipMesh.position.set(tip.x, tip.y, 0);
+      tipMesh.castShadow = true;
+      g.add(...armMeshes, tipMesh);
       this.group.add(g);
 
       this.fingers.push({
         sign, body, joint, mesh: g,
-        // 발가락 안쪽 끝점 = 팔 안쪽 면 + 발가락 전체 길이
-        tipLocal: new THREE.Vector3(-sign * (ARM_HALF_X + tipHalf * 2), tipY, 0),
-        padLocal: new THREE.Vector3(tipX, tipY - tipThick, 0),        // 발끝 판 아랫면 중앙
+        colliders: [...armCols, tipCol],
+        tipLocal: new THREE.Vector3(mount.x - sign * tipHalf * 2, mount.y, 0),          // 발바닥 안쪽 끝점
+        padLocal: new THREE.Vector3(mount.x - sign * tipHalf, mount.y - tipThick, 0),   // 발바닥 아랫면 중앙
       });
     }
 
     this.applyMotor(true);
   }
 
-  open() { this.targetSpread = this.cfg.clawOpenSpread; }
+  /** 벌림각은 형상에서 역산한다 — 이 각도에서 두 발이 정확히 ⊓ 자가 된다 */
+  open() { this.targetSpread = this.openSpread; }
   close() { this.targetSpread = this.cfg.clawCloseSpread; }
-  /** 파지 실패 — 모터가 버티지 못하고 발이 벌어진다 */
-  slip() { this.targetSpread = Math.max(this.targetSpread, this.cfg.clawSlipSpread); }
-  setGripTorque(t) { this.torque = t; }
 
-  /** 발의 실제 각도 (Z축 회전) */
-  angleOf(f) {
-    const r = f.body.rotation();
-    return Math.atan2(2 * (r.w * r.z), 1 - 2 * r.z * r.z);
+  /** 명령 벌림각이 목표에 도달했는가 (발이 박스에 막혀 있어도 true) */
+  reachedTarget() { return Math.abs(this.targetSpread - this.spread) < 1e-6; }
+
+  /** 명령값 도달 + 실제 발 각도도 목표에서 tol(rad) 이내 */
+  settled(tol) {
+    return this.reachedTarget() && this.fingers.every((f) => (f.motorError ?? Infinity) < tol);
   }
 
+  /** 발의 실제 개폐 각도 — 헤드 기준 Z축 회전 (헤드가 수직축으로 돌아 있어도 개폐각만 뽑는다) */
+  angleOf(f) {
+    const h = this.head.rotation(), r = f.body.rotation();
+    const q = new THREE.Quaternion(h.x, h.y, h.z, h.w).invert()
+      .multiply(new THREE.Quaternion(r.x, r.y, r.z, r.w));
+    return Math.atan2(2 * (q.w * q.z), 1 - 2 * q.z * q.z);
+  }
+
+  /** 이 발이 다른 물체(박스·봉·벽·반대쪽 발)와 실제로 접촉 중인가 */
+  isTouching(f) {
+    const w = this.world;
+    const skip = new Set(f.colliders.map((c) => c.handle));
+    skip.add(this.headCollider.handle);
+    let hit = false;
+    for (const c of f.colliders) {
+      w.contactPairsWith(c, (other) => {
+        if (hit || skip.has(other.handle)) return;
+        w.contactPair(c, other, (m) => { if (m.numSolverContacts() > 0) hit = true; });
+      });
+      if (hit) break;
+    }
+    return hit;
+  }
+
+  /**
+   * 발 모터. 실기처럼 "움직이는 속도"와 "무는 힘"을 분리한다.
+   *  - 아무것에도 닿지 않았을 때: clawMoveTorque 로 개폐 램프(clawMotorSpeed)를 그대로 따라간다.
+   *    목표 속도를 함께 넘겨, 댐핑이 움직임 자체에 브레이크를 걸지 않게 한다.
+   *  - 무언가에 닿았을 때: clawGripTorque 로만 민다 → 약한 파지력이어도 개폐 속도는 그대로.
+   */
   applyMotor(snap = false) {
     const cfg = this.cfg;
     for (const f of this.fingers) {
       const target = f.sign * this.spread;
       const err = Math.abs(target - this.angleOf(f));
+      f.touching = !snap && this.isTouching(f);
+      const torque = f.touching ? cfg.clawGripTorque : Math.max(cfg.clawGripTorque, cfg.clawMoveTorque);
       // 일정 토크 = 강성 × 오차  →  강성 = 토크 / 오차
-      const k = Math.min(cfg.clawMaxStiffness, this.torque / Math.max(0.03, err));
-      f.joint.configureMotorPosition(target, k, cfg.clawGripDamping);
+      const k = Math.min(cfg.clawMaxStiffness, torque / Math.max(0.03, err));
+      if (f.touching) f.joint.configureMotorPosition(target, k, cfg.clawGripDamping);
+      else f.joint.configureMotor(target, f.sign * this.spreadVel, k, cfg.clawGripDamping);
       f.motorError = err;
       if (snap) {
-        const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), target);
+        const h = this.head.rotation();
+        const q = new THREE.Quaternion(h.x, h.y, h.z, h.w)
+          .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), target));
         f.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
       }
     }
@@ -1064,9 +1951,14 @@ class Claw {
   update(dt) {
     const step = this.cfg.clawMotorSpeed * dt;
     const d = this.targetSpread - this.spread;
-    this.spread += Math.max(-step, Math.min(step, d));
+    const move = Math.max(-step, Math.min(step, d));
+    this.spread += move;
+    this.spreadVel = dt > 0 ? move / dt : 0;   // 개폐 램프 속도 (모터 목표 속도로 쓴다)
     this.applyMotor();
     this.head.setNextKinematicTranslation({ x: this.pos.x, y: this.pos.y, z: this.pos.z });
+    // 수직축(Y) 회전. yaw 는 위에서 봤을 때 시계방향이 + → 오른손 법칙으로는 −Y 회전.
+    const half = -this.yaw / 2;
+    this.head.setNextKinematicRotation({ x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) });
   }
 
   render() {
@@ -1107,44 +1999,15 @@ class Claw {
     return out;
   }
 
-  /**
-   * 파지 품질 0~1.
-   *
-   * 이 기계의 집게는 마찰로 옆면을 "무는" 것이 아니라, 납작한 발이 박스 **밑으로
-   * 들어가 걷어 올리는** 방식이다. 따라서 품질은
-   *   ① 발끝이 박스 바닥면보다 아래에 있는가 (밑으로 파고들었는가)
-   *   ② 바닥면 안쪽으로 얼마나 깊이 들어갔는가 (모서리만 걸치면 낮음)
-   * 로 정한다.
-   */
-  gripQuality(boxBody, half) {
-    const bt = boxBody.translation();
-    const br = boxBody.rotation();
-    const inv = new THREE.Quaternion(br.x, br.y, br.z, br.w).invert();
-    const origin = new THREE.Vector3(bt.x, bt.y, bt.z);
-    const m = Math.max(1e-4, this.cfg.gripEdgeMargin);
-
-    const q = this.fingers.map((f) => {
-      const local = this.tipWorld(f).sub(origin).applyQuaternion(inv);
-      // ① 바닥면보다 아래여야 걷어 올릴 수 있다 (약간의 여유 허용)
-      const under = (-local.y) - half.y;
-      if (under < -0.006) return 0;
-      // ② 바닥면 안쪽으로 파고든 깊이
-      const inX = half.x - Math.abs(local.x);
-      const inZ = half.z - Math.abs(local.z);
-      if (inX <= 0 || inZ <= 0) return 0;       // 발이 바닥 밑까지 안 들어옴
-      return Math.min(1, Math.min(inX, inZ) / m);
-    });
-
-    return Math.sqrt(Math.max(0, q[0]) * Math.max(0, q[1]));
-  }
-
   isMine(handle) { return this.myColliders.has(handle); }
 
   teleport(x, y, z) {
     this.pos.set(x, y, z);
+    this.yaw = 0;
     this.head.setTranslation({ x, y, z }, true);
+    this.head.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
     for (const f of this.fingers) {
-      f.body.setTranslation({ x: x + f.sign * this.cfg.clawPivotX, y, z }, true);
+      f.body.setTranslation({ x: x + f.sign * this.cfg.clawPivotX, y: y + this.pivotY, z }, true);
       f.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       f.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
@@ -1173,11 +2036,17 @@ const STATE = {
   AIM_X: '좌우 이동 중 (버튼을 놓으면 정지)',
   AIM_X_DONE: '좌우 정지 — 전진 버튼을 누르세요',
   AIM_Z: '전진 중 (버튼을 놓으면 하강)',
-  AIM_FREE: '자유 조작 — 이동/전진 반복 가능, 정지 버튼으로 하강',
+  OPEN: '집게 벌리는 중',
+  OPEN_WAIT: '벌림 완료 — 잠시 대기',
   DESCEND: '하강 중 — 정지 버튼 / 접촉 시 자동 정지',
+  BOTTOM_WAIT: '하강 완료 — 잠시 대기',
   CLOSE: '집게 오므리는 중',
+  CLOSE_WAIT: '오므림 완료 — 잠시 대기',
   LIFT: '들어올리는 중',
-  RELEASE: '집게 벌리는 중',
+  TOP_WAIT: '상승 완료 — 잠시 대기',
+  CARRY: '중앙으로 이동 중',
+  CENTER_WAIT: '중앙 도착 — 잠시 대기',
+  RELEASE: '집게 벌림 — 잠시 대기',
   RETURN: '시작점으로 복귀 중',
   WIN: '성공! 상품이 틈으로 낙하',
 };
@@ -1199,13 +2068,12 @@ class Game {
 
     this.state = 'IDLE';
     this.timer = 0;
-    this.freeMode = false;      // true 면 좌우/전진을 몇 번이든 다시 조작 가능
     this.axisEngaged = false;
-    this.dirX = -1;             // 홈이 가장 오른쪽이므로 왼쪽(-X)으로 진행
+    this.yaw = 0;               // 집게 수직축 회전 (rad) — update() 참고
+    this.dirX = -1;            // 홈이 가장 오른쪽이므로 왼쪽(-X)으로 진행
     this.dirZ = -1;             // 앞(+Z)에서 뒤(-Z)로 진행
     this.btn = { move: false, fwd: false, stop: false };
     this.prevBtn = { move: false, fwd: false, stop: false };
-    this.lastGrip = { quality: 0, failP: 0, roll: 0, failed: false };
     this.contactStop = false;
     this.pressUntil = null;
     this.stopReason = '';
@@ -1222,7 +2090,8 @@ class Game {
     if (this.boxMesh) {
       this.scene.remove(this.boxMesh);
       this.boxMesh.geometry.dispose();
-      this.boxMesh.material.dispose();
+      // 인쇄면 텍스처는 figurebox.js 가 캐시해 재사용하므로 재질만 버린다
+      for (const m of [].concat(this.boxMesh.material)) m.dispose();
     }
 
     this.clawBoxPairs = new Set();
@@ -1293,7 +2162,6 @@ class Game {
     if (this.state !== 'IDLE') return false;
     this.attempts++;
     if (!this.clawTouchingBox()) this.claw.close();  // 박스가 얹혀 있으면 벌린 채로 시작
-    this.claw.setGripTorque(this.cfg.clawGripTorque);
     this.setState('AIM_X');
     return true;
   }
@@ -1304,18 +2172,39 @@ class Game {
     this.resetBox();
     this.claw.teleport(cfg.homeX, cfg.clawTopY, cfg.homeZ);
     this.claw.close();
-    this.claw.setGripTorque(cfg.clawGripTorque);
+    this.yaw = 0;
     this.stopReason = '';
-    this.lastGrip = { quality: 0, failP: 0, roll: 0, failed: false };
     this.setState('IDLE');
   }
 
-  /** 집게를 벌리고 자동 하강 시작 */
+  /** 조준이 끝나면 발을 먼저 끝까지 벌린다. 다 벌어지면 OPEN 이 하강을 시작한다. */
   beginDescend() {
     this.claw.open();
     this.contactStop = false;
     this.pressUntil = null;
-    this.setState('DESCEND');
+    this.setState('OPEN');
+  }
+
+  /**
+   * 집게 헤드를 (x, z) 로 한 프레임만큼 옮긴다. 두 축은 각자의 속도로 동시에 움직인다.
+   * @returns 도착했으면 true
+   */
+  moveToward(x, z, dt) {
+    const { claw, cfg } = this;
+    const dx = x - claw.pos.x;
+    const dz = z - claw.pos.z;
+    const sx = cfg.clawSpeedX * dt, sz = cfg.clawSpeedZ * dt;
+    claw.pos.x += clamp(dx, -sx, sx);
+    claw.pos.z += clamp(dz, -sz, sz);
+    return Math.abs(dx) <= sx && Math.abs(dz) <= sz;
+  }
+
+  /** 박스를 내려놓는 중앙 지점: 좌우 정중앙, 앞뒤는 2–3번 봉 사이 한가운데 */
+  centerPoint() {
+    const bars = barLayout(this.cfg);
+    const z2 = bars.find((b) => b.n === 2).z;
+    const z3 = bars.find((b) => b.n === 3).z;
+    return { x: 0, z: (z2 + z3) / 2 };
   }
 
   setState(s) {
@@ -1374,8 +2263,7 @@ class Game {
           claw.pos.x = clamp(claw.pos.x + this.dirX * cfg.clawSpeedX * dt, -cfg.limitX, cfg.limitX);
         } else if (this.axisEngaged) {
           this.axisEngaged = false;
-          if (this.freeMode) { this.dirX *= -1; this.setState('AIM_FREE'); }
-          else this.setState('AIM_X_DONE');
+          this.setState('AIM_X_DONE');
         }
         break;
 
@@ -1390,29 +2278,30 @@ class Game {
           claw.pos.z = clamp(claw.pos.z + this.dirZ * cfg.clawSpeedZ * dt, cfg.limitZback, cfg.limitZfront);
         } else if (this.axisEngaged) {
           this.axisEngaged = false;
-          if (this.freeMode) { this.dirZ *= -1; this.setState('AIM_FREE'); }
-          else { this.beginDescend(); }
+          this.beginDescend();
         }
         break;
 
-      // 자유 조작 모드: 좌우/전진을 몇 번이든 다시 조작, 정지 버튼으로 하강 시작
-      case 'AIM_FREE':
-        if (this.pressed('move')) { this.setState('AIM_X'); break; }
-        if (this.pressed('fwd')) { this.setState('AIM_Z'); break; }
-        if (this.pressed('stop')) {
-          this.beginDescend();
-        }
+      // ─── 여기부터는 실기와 같은 자동 시퀀스 ───
+      // 벌림 → (대기) → 하강 → (대기) → 오므림 → (대기) → 상승 → (대기)
+      // → 닫은 채 중앙으로 이동 → (대기) → 벌림 → (대기) → 시작점 복귀
+
+      // 발이 끝까지 벌어진 뒤, 잠시 기다렸다가 내려가기 시작한다
+      case 'OPEN':
+        if (claw.settled(0.05) || this.timer > 1.0) this.setState('OPEN_WAIT');
+        break;
+
+      case 'OPEN_WAIT':
+        if (this.timer >= cfg.clawPause) this.setState('DESCEND');
         break;
 
       case 'DESCEND': {
         claw.pos.y = Math.max(cfg.clawMinY, claw.pos.y - cfg.clawSpeedDown * dt);
         const bottom = claw.pos.y <= cfg.clawMinY + 1e-6;
         const stopBtn = this.pressed('stop');
-        // 발이 벌어지기 전(0.15초)엔 접촉 정지를 무시해 헛정지 방지
-        const touched = this.contactStop && this.timer > 0.15;
 
         // 접촉하면 곧바로 멈추지 않고 overtravel 만큼 더 눌러 준다 (기법 B의 근거)
-        if (touched && this.pressUntil === null) {
+        if (this.contactStop && this.pressUntil === null) {
           this.pressUntil = claw.pos.y - cfg.descendOvertravel;
         }
         const pressed = this.pressUntil !== null && claw.pos.y <= this.pressUntil;
@@ -1420,51 +2309,62 @@ class Game {
         if (bottom || stopBtn || pressed) {
           this.stopReason = stopBtn ? '정지 버튼'
             : (pressed ? `접촉 자동 정지 (+${(cfg.descendOvertravel * 100).toFixed(1)}cm 누름)` : '하강 한계');
-          claw.close();
-          this.setState('CLOSE');
+          this.setState('BOTTOM_WAIT');
         }
         break;
       }
 
-      case 'CLOSE':
-        if (this.timer > 0.55) {
-          this.rollGrip();
-          this.setState('LIFT');
+      case 'BOTTOM_WAIT':
+        if (this.timer >= cfg.clawPause) {
+          claw.close();
+          this.setState('CLOSE');
         }
+        break;
+
+      // 박스를 물면 발이 끝까지 닫히지 않으므로, 실제 각도가 아니라 명령값 기준으로 판단
+      case 'CLOSE':
+        if (claw.reachedTarget()) this.setState('CLOSE_WAIT');
+        break;
+
+      case 'CLOSE_WAIT':
+        if (this.timer >= cfg.clawPause) this.setState('LIFT');
         break;
 
       case 'LIFT':
         claw.pos.y = Math.min(cfg.clawTopY, claw.pos.y + cfg.clawSpeedUp * dt);
-        // 파지 실패는 들어올리는 도중 발이 벌어지며 드러난다
-        if (this.lastGrip.failed && this.timer > cfg.clawSlipDelay) claw.slip();
-        // 끝까지 올라가면 그 자리에서 먼저 벌린다 (박스는 집어 올린 자리로 떨어진다)
-        if (claw.pos.y >= cfg.clawTopY - 1e-4) {
+        if (claw.pos.y >= cfg.clawTopY - 1e-4) this.setState('TOP_WAIT');
+        break;
+
+      case 'TOP_WAIT':
+        if (this.timer >= cfg.clawPause) this.setState('CARRY');
+        break;
+
+      // 발을 닫은(= 잡은) 채로 중앙 지점까지 옮긴다
+      case 'CARRY': {
+        const c = this.centerPoint();
+        if (this.moveToward(c.x, c.z, dt)) this.setState('CENTER_WAIT');
+        break;
+      }
+
+      case 'CENTER_WAIT':
+        if (this.timer >= cfg.clawPause) {
           claw.open();
           this.setState('RELEASE');
         }
         break;
 
-      // 벌린 채로 박스가 발에서 떨어질 때까지 기다린다 (닫으면 다시 잡혀 버림)
+      // 벌린 뒤 잠시 기다려 박스가 발에서 떨어지게 한다
       case 'RELEASE':
-        if (this.timer > 0.9 && (!this.clawTouchingBox() || this.timer > 2.5)) {
-          claw.setGripTorque(cfg.clawGripTorque);
-          this.setState('RETURN');
-        }
+        if (this.timer >= cfg.clawPause) this.setState('RETURN');
         break;
 
-      // 벌린 채로 시작점까지 돌아간 뒤 오므린다
-      case 'RETURN': {
-        const dx = cfg.homeX - claw.pos.x;
-        const dz = cfg.homeZ - claw.pos.z;
-        const sx = cfg.clawSpeedX * dt, sz = cfg.clawSpeedZ * dt;
-        claw.pos.x += Math.max(-sx, Math.min(sx, dx));
-        claw.pos.z += Math.max(-sz, Math.min(sz, dz));
-        if (Math.abs(dx) < 1e-3 && Math.abs(dz) < 1e-3) {
+      // 벌린 채로 시작점까지 돌아간 뒤 오므린다 (닫은 채 이동하면 박스가 다시 잡힐 수 있다)
+      case 'RETURN':
+        if (this.moveToward(cfg.homeX, cfg.homeZ, dt)) {
           if (!this.clawTouchingBox()) claw.close();
           this.setState('IDLE');
         }
         break;
-      }
 
       // 자동 복귀하지 않는다. UI 의 "다시하기" 버튼이 restart() 를 부를 때까지 대기.
       case 'WIN':
@@ -1480,19 +2380,21 @@ class Game {
       }
     }
 
-    claw.update(dt);
-  }
+    // 케이블이 풀리며 집게가 수직축으로 살짝 돈다.
+    // 하강 중에는 내려간 깊이에 비례해 돌고, 잡고·올리고·옮기는 동안은 그 각도를 유지한다
+    // (박스를 문 채로 되돌리면 박스가 비틀려 옮기는 도중 떨어진다 — 측정으로 확인).
+    // 발을 벌린 뒤부터 1초에 최대 각도만큼씩 풀린다.
+    const yawMax = cfg.clawDescendYaw * Math.PI / 180;
+    if (this.state === 'DESCEND') {
+      const depth = clamp((cfg.clawTopY - claw.pos.y) / Math.max(1e-6, cfg.clawTopY - cfg.clawMinY), 0, 1);
+      this.yaw = depth * yawMax;
+    } else if (this.state === 'RELEASE' || this.state === 'RETURN' || this.state === 'IDLE') {
+      const s = Math.abs(yawMax) * dt;
+      this.yaw -= clamp(this.yaw, -s, s);
+    }
+    claw.yaw = this.yaw;
 
-  /** 파지 품질을 계산하고 확률적으로 grip 실패를 판정 */
-  rollGrip() {
-    const cfg = this.cfg;
-    const quality = this.claw.gripQuality(this.boxBody, this.boxHalf);
-    const failP = cfg.gripFailMin + (cfg.gripFailBase - cfg.gripFailMin) * (1 - quality);
-    const roll = Math.random();
-    const failed = roll < failP;
-    this.claw.setGripTorque(failed ? cfg.clawSlipTorque : cfg.clawGripTorque);
-    this.lastGrip = { quality, failP, roll, failed };
-    return this.lastGrip;
+    claw.update(dt);
   }
 
   /** 집게(헤드/발)가 박스에 닿아 있는가 */
@@ -1531,6 +2433,7 @@ class Game {
     this.claw.dispose();
     this.machine = new Machine(this.world, this.scene, this.cfg);
     this.claw = new Claw(this.world, this.scene, this.cfg);
+    this.yaw = 0;
     this.resetBox();
     this.setState('IDLE');
   }
@@ -1545,7 +2448,7 @@ const REBUILD_KEYS = new Set([
   'barRadius', 'barLength', 'barGapZ', 'barOuterZ', 'barLowY', 'barRaise',
   'frictionRubber', 'frictionSlick', 'frictionBox', 'frictionFloor', 'frictionClaw',
   'boxW', 'boxH', 'boxD', 'boxMass', 'boxRestitution', 'boxLinDamp', 'boxAngDamp',
-  'clawPivotX', 'clawArmLen', 'clawElbowOut', 'clawElbowAt', 'clawFingerMass', 'clawTipThick', 'clawTipWidth', 'clawTipLen',
+  'clawPivotX', 'clawArmLen', 'clawElbowOut','clawFingerMass', 'clawTipThick', 'clawTipWidth', 'clawTipLen', 'clawTipRaise',
   'cabW', 'cabDback', 'frontGap', 'shelfDrop', 'chuteDrop', 'displayCount',
 ]);
 
@@ -1566,17 +2469,48 @@ class UI {
     // ---------- HUD ----------
     this.hud = el('div', 'hud');
     this.hud.innerHTML = `
-      <div class="row"><b id="hud-state">대기</b></div>
-      <div class="row muted" id="hud-score">시도 0 · 성공 0</div>
-      <hr>
-      <div class="row"><span>박스 z</span><b id="hud-bz">–</b></div>
-      <div class="row"><span>박스 기울기(X축)</span><b id="hud-tilt">–</b></div>
-      <div class="row"><span>접촉 봉</span><b id="hud-bars">–</b></div>
-      <hr>
-      <div class="row"><span>파지 품질</span><b id="hud-q">–</b></div>
-      <div class="row"><span>실패율/주사위</span><b id="hud-roll">–</b></div>
-      <div class="row wrap"><span>정지 사유</span><b id="hud-stop">–</b></div>`;
+      <button class="hud-head" id="hud-toggle" aria-expanded="true">
+        <b id="hud-state">대기</b><i class="hud-caret" aria-hidden="true"></i>
+      </button>
+      <div class="hud-body">
+        <div class="row muted" id="hud-score">시도 0 · 성공 0</div>
+        <hr>
+        <div class="row"><span>박스 z</span><b id="hud-bz">–</b></div>
+        <div class="row"><span>박스 기울기(X축)</span><b id="hud-tilt">–</b></div>
+        <div class="row"><span>접촉 봉</span><b id="hud-bars">–</b></div>
+        <div class="row wrap"><span>정지 사유</span><b id="hud-stop">–</b></div>
+      </div>`;
     document.body.appendChild(this.hud);
+
+    // 접힘 상태는 기기마다 기억한다. 저장값이 없으면 좁은 화면(모바일)에서 접힌 채로 시작.
+    let collapsed = matchMedia('(max-width: 820px)').matches;
+    try {
+      const saved = localStorage.getItem(HUD_KEY);
+      if (saved !== null) collapsed = saved === '1';
+    } catch (e) {}
+    const setCollapsed = (v) => {
+      this.hud.classList.toggle('collapsed', v);
+      q('#hud-toggle').setAttribute('aria-expanded', String(!v));
+      try { localStorage.setItem(HUD_KEY, v ? '1' : '0'); } catch (e) {}
+    };
+    setCollapsed(collapsed);
+
+    // 상태 표시 탭: 개발자 모드에서는 접기/펼치기. 동시에 "숨은 전환"(2초 안에 7번 탭)을 센다.
+    let taps = [];
+    let collapsedAtFirstTap = collapsed;
+    q('#hud-toggle').addEventListener('click', () => {
+      const now = performance.now();
+      taps = taps.filter((t) => now - t < SECRET_TAP_WINDOW);
+      if (!taps.length) collapsedAtFirstTap = this.hud.classList.contains('collapsed');
+      taps.push(now);
+      if (taps.length >= SECRET_TAP_COUNT) {
+        taps = [];
+        if (this.devMode) setCollapsed(collapsedAtFirstTap);   // 연타로 뒤집힌 접힘 상태는 되돌린다
+        this.setDevMode(!this.devMode);
+        return;
+      }
+      if (this.devMode) setCollapsed(!this.hud.classList.contains('collapsed'));
+    });
 
     // ---------- 조작 버튼 3개 ----------
     const pad = el('div', 'pad');
@@ -1602,37 +2536,44 @@ class UI {
     document.body.appendChild(pad);
 
     // ---------- 툴바 ----------
+    // 'dev-only' 클래스가 붙은 요소는 개발자 모드에서만 보인다 (styles.css)
     const bar = el('div', 'toolbar');
-    const mk = (label, fn, cls = '') => {
+    this.toolbar = bar;
+    const mk = (label, fn, cls = '', parent = bar) => {
       const b = el('button', 'tool ' + cls);
       b.textContent = label;
       b.addEventListener('click', fn);
-      bar.appendChild(b);
+      parent.appendChild(b);
       return b;
     };
     mk('박스 초기위치', () => this.game.resetBox());
-    mk('박스 → 1번 봉', () => this.game.resetBox(this.game.poseOnOuterBar(1)));
-    mk('박스 → 4번 봉', () => this.game.resetBox(this.game.poseOnOuterBar(4)));
-    this.freeBtn = mk('자유 조작: OFF', () => {
-      this.game.freeMode = !this.game.freeMode;
-      this.freeBtn.textContent = '자유 조작: ' + (this.game.freeMode ? 'ON' : 'OFF');
-      this.freeBtn.classList.toggle('active', this.game.freeMode);
-    });
+    mk('박스 → 1번 봉', () => this.game.resetBox(this.game.poseOnOuterBar(1)), 'dev-only');
+    mk('박스 → 4번 봉', () => this.game.resetBox(this.game.poseOnOuterBar(4)), 'dev-only');
     this.dbgBtn = mk('물리 와이어', () => {
       this.app.debug.visible = !this.app.debug.visible;
       this.dbgBtn.classList.toggle('active', this.app.debug.visible);
-    });
+    }, 'dev-only');
     mk('정면', () => this.app.setView('front'));
     mk('측면', () => this.app.setView('side'));
     mk('위', () => this.app.setView('top'));
     this.panelBtn = mk('⚙ 튜닝', () => {
       this.panel.classList.toggle('open');
       this.panelBtn.classList.toggle('active', this.panel.classList.contains('open'));
-    }, 'accent');
+      this.layout();
+    }, 'accent dev-only');
+
+    // 피규어 종류 선택 (두 모드 공통)
+    const figs = el('div', 'figures');
+    figs.appendChild(Object.assign(el('span', 'figures-label'), { textContent: '피규어' }));
+    this.figureBtns = new Map();
+    for (const f of FIGURES) {
+      this.figureBtns.set(f.id, mk(f.name, () => this.selectFigure(f.id), 'figure', figs));
+    }
+    bar.appendChild(figs);
     document.body.appendChild(bar);
 
     // ---------- 튜닝 패널 ----------
-    this.panel = el('div', 'panel');
+    this.panel = el('div', 'panel dev-only');
     const head = el('div', 'panel-head');
     head.innerHTML = '<b>파라미터 튜닝</b>';
     const resetAll = el('button', 'tool');
@@ -1682,6 +2623,72 @@ class UI {
       '<button class="restart" id="btn-restart">다시하기</button></div>';
     document.body.appendChild(this.overlay);
     q('#btn-restart').addEventListener('click', () => this.game.restart());
+
+    // ---------- 모드 전환 알림 ----------
+    this.toast = el('div', 'toast');
+    this.toast.setAttribute('role', 'status');
+    document.body.appendChild(this.toast);
+
+    // 모드·피규어 선택 상태 복원 (기기마다 기억)
+    let dev = false, fig = FIGURES[0].id;
+    try {
+      dev = localStorage.getItem(DEV_KEY) === '1';
+      const savedFig = Number(localStorage.getItem(FIGURE_KEY));
+      if (FIGURES.some((f) => f.id === savedFig)) fig = savedFig;
+    } catch (e) {}
+    this.setDevMode(dev, { silent: true });
+    this.markFigure(fig);
+    addEventListener('resize', () => this.layout());
+  }
+
+  /** 개발자 모드 켜기/끄기. 끌 때는 개발용 표시(튜닝 패널, 물리 와이어)도 함께 닫는다. */
+  setDevMode(on, { silent = false } = {}) {
+    this.devMode = on;
+    document.body.classList.toggle('dev', on);
+    try { localStorage.setItem(DEV_KEY, on ? '1' : '0'); } catch (e) {}
+    if (!on) {
+      this.panel.classList.remove('open');
+      this.panelBtn.classList.remove('active');
+      this.app.debug.visible = false;
+      this.dbgBtn.classList.remove('active');
+    }
+    if (!silent) this.showToast(on ? '개발자 모드 ON' : '개발자 모드 OFF');
+    this.layout();
+  }
+
+  showToast(text) {
+    this.toast.textContent = text;
+    this.toast.classList.add('show');
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => this.toast.classList.remove('show'), 1400);
+  }
+
+  /** 피규어 종류를 고르면 그 번호의 박스 크기·봉 위치로 바꾸고 기구를 다시 만든다 */
+  selectFigure(id) {
+    const fig = FIGURES.find((f) => f.id === id);
+    if (!fig) return;
+    Object.assign(this.cfg, fig.values);
+    saveConfig(this.cfg);
+    this.syncSliders();
+    this.markFigure(id);
+    this.scheduleRebuild(true);
+  }
+
+  markFigure(id) {
+    for (const [fid, b] of this.figureBtns) b.classList.toggle('active', fid === id);
+    try { localStorage.setItem(FIGURE_KEY, String(id)); } catch (e) {}
+  }
+
+  /**
+   * 툴바 줄 수가 모드·화면 폭에 따라 달라지므로, 튜닝 패널과 HUD 를 툴바 아래로 맞춘다.
+   * HUD 는 툴바와 가로로 겹칠 때(좁은 화면)만 내린다.
+   */
+  layout() {
+    const tb = this.toolbar.getBoundingClientRect();
+    this.panel.style.top = `${Math.round(tb.bottom + 6)}px`;
+    this.hud.style.top = '';
+    const hud = this.hud.getBoundingClientRect();
+    if (hud.right > tb.left - 6) this.hud.style.top = `${Math.round(tb.bottom + 8)}px`;
   }
 
   syncSliders() {
@@ -1698,7 +2705,17 @@ class UI {
 
   bindKeys() {
     const map = { KeyA: 'move', ArrowLeft: 'move', KeyW: 'fwd', ArrowUp: 'fwd', Space: 'stop', KeyS: 'stop', ArrowDown: 'stop' };
+    let typed = '';
     addEventListener('keydown', (e) => {
+      // 숨은 전환 단어. e.code 를 먼저 읽어 한/영 입력 상태와 무관하게 같은 물리 키를 인식하고,
+      // code 가 없는 환경에서는 e.key 로 대신한다.
+      const letter = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase()
+        : /^(Digit|Numpad)[0-9]$/.test(e.code) ? e.code.slice(-1)
+        : (/^[a-z0-9]$/i.test(e.key) ? e.key.toLowerCase() : null);
+      if (letter && !e.repeat) {
+        typed = (typed + letter).slice(-SECRET_WORD.length);
+        if (typed === SECRET_WORD) { typed = ''; this.setDevMode(!this.devMode); }
+      }
       const k = map[e.code];
       if (!k) return;
       e.preventDefault();
@@ -1732,16 +2749,21 @@ class UI {
     const bars = g.barContacts();
     q('#hud-bars').textContent = bars.length ? bars.map((n) => n + '번').join(', ') : '없음';
 
-    const gr = g.lastGrip;
-    q('#hud-q').textContent = gr.quality.toFixed(2);
-    q('#hud-roll').textContent =
-      `${(gr.failP * 100).toFixed(0)}% / ${gr.roll.toFixed(2)} ${gr.failed ? '✕' : '○'}`;
-    q('#hud-roll').className = gr.failed ? 'bad' : 'good';
     q('#hud-stop').textContent = g.stopReason || '–';
 
     this.overlay.classList.toggle('show', g.state === 'WIN');
   }
 }
+
+const HUD_KEY = 'ufo-catcher-hud-collapsed';
+const DEV_KEY = 'ufo-catcher-dev';
+const FIGURE_KEY = 'ufo-catcher-figure';
+
+// 개발자 모드 숨은 전환: 상태 표시를 SECRET_TAP_WINDOW(ms) 안에 SECRET_TAP_COUNT 번 탭하거나,
+// 키보드로 SECRET_WORD 를 입력한다. 정적 사이트라 소스를 보면 찾을 수 있다 — 보안이 아니라 가림막.
+const SECRET_TAP_COUNT = 7;
+const SECRET_TAP_WINDOW = 2000;
+const SECRET_WORD = 'ssen8945';   // 영문 소문자·숫자
 
 // ---- 유틸 ----
 function el(tag, cls) { const e = document.createElement(tag); if (cls) e.className = cls; return e; }
@@ -1890,7 +2912,6 @@ window.__ufo = {
       box: { x: +t.x.toFixed(3), y: +t.y.toFixed(3), z: +t.z.toFixed(3) },
       tiltXdeg: +(e.x * 180 / Math.PI).toFixed(1),
       bars: game.barContacts(),
-      grip: game.lastGrip,
     };
   },
 

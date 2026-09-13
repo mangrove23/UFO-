@@ -27,6 +27,7 @@ export const DEFAULTS = {
   boxRestitution: 0.02,
   boxLinDamp: 0.15,
   boxAngDamp: 0.25,
+  boxArt: 'lumina',      // 박스 인쇄면 디자인 (src/figurebox.js 의 ARTS 키). 없는 키면 단색 박스
 
   // ---- 종이 찌그러짐 (시각 전용, 물리 형상은 강체 유지) ----
   paperDent: 0.014,      // 최대 눌림 깊이
@@ -36,27 +37,29 @@ export const DEFAULTS = {
 
   // ---- 집게 ----
   // 벌림각 spread: 0 = 두 발끝이 정중앙에서 맞닿음, 클수록 벌어짐.
-  clawPivotX: 0.100,     // 발 회전축의 |x| (= 발끝이 안쪽으로 뻗는 길이와 동일)
-  clawArmLen: 0.170,     // 발(팔) 전체 길이
-  // 팔은 팔꿈치에서 꺾여, 두 팔이 마름모를 이룬다 (실기와 같은 형태).
-  clawElbowOut: 0.035,   // 팔꿈치가 바깥으로 벌어지는 양
-  clawElbowAt: 0.45,     // 팔꿈치 높이 (팔 길이 대비 비율)
-  clawTipThick: 0.006,   // 발끝 판 두께의 절반 (납작한 판)
-  clawTipWidth: 0.021,   // 발끝 판 폭의 절반 (Z 방향)
-  // 발가락(안쪽으로 꺾인 판) 길이의 절반.
+  // 팔은 팔꿈치에서 직각으로 꺾인 ㄱ자다. 아래 치수는 "벌린 상태(⊓ 자)" 기준이며,
+  // 오므리면 발끝이 정중앙에서 맞닿는 마름모가 된다. 벌림각은 형상에서 자동 계산.
+  clawPivotX: 0.0948,    // 발 회전축의 |x| (캡슐 헤드 양 끝의 5시·7시 위치. 헤드 길이도 여기서 정해진다)
+  clawElbowOut: 0.081,   // 축 → 팔꿈치 수평 길이 (벌린 상태)
+  clawArmLen: 0.1485,    // 팔꿈치 → 발끝 수직 길이 (벌린 상태)
+  clawTipThick: 0.00135, // 발끝 금속판 두께의 절반 (2.7mm 판)
+  clawTipWidth: 0.0144,  // 발끝 판 폭의 절반 (Z 방향)
+  // 발가락(안쪽으로 뻗은 판) 길이의 절반.
   // 발가락은 발(팔)의 안쪽 면에 붙어 있고 거기서부터 안쪽으로 뻗는다.
   // 따라서 이 값을 줄이면 박스 밑으로 파고드는 도달 거리도 같이 짧아진다.
-  clawTipLen: 0.0225,
-  clawOpenSpread: 0.55,  // 벌어졌을 때. 팔꿈치 때문에 더 벌리면 옆 유리에 닿는다
-  clawCloseSpread: 0.00,  // 발가락이 짧아져 서로 부딪히지 않으므로 끝까지 오므린다
+  clawTipLen: 0.02025,
+  clawTipRaise: 0.0027,  // 발바닥이 붙는 높이: 수직 팔 아래 끝에서 이만큼 위 (벌린 상태 기준)
+  clawCloseSpread: 0.00,  // 0 = 발끝이 맞닿은 마름모
   // 파지력은 "각도 오차 × 강성" 이 아니라 일정한 토크로 준다.
   // (모터 강성을 매 프레임 torque/오차 로 역산 → 박스 폭과 무관하게 힘이 일정)
-  clawGripTorque: 1.00,  // N·m. 발 하나가 박스를 무는 힘
-  clawSlipTorque: 1.00,  // grip 실패 시 토크
-  // grip 실패 시: 들어올리는 도중 모터가 버티지 못하고 발이 이만큼 벌어진다.
-  // (실기에서도 상승 직후 파지압이 빠지면서 놓친다)
-  clawSlipSpread: 0.20,
-  clawSlipDelay: 0.40,   // 오므린 뒤 이 시간이 지나면 벌어짐
+  // N·m. 발 하나가 오므리는 힘 (들어올리는 힘과는 별개 — 헤드 상승은 kinematic 이라 무제한).
+  // 들어올리는 동안 박스 무게에 발이 벌어지지 않게 버티는 힘이기도 하다.
+  // 측정: 0.10 이하면 박스를 못 들고, 1.0 이면 발이 모서리에 걸릴 때 박스를 튕겨 낸다
+  // (0.55 m/s, 7 rad/s). 0.20 은 튕김이 거의 없고(0.03 m/s) 들기에는 2배 여유.
+  clawGripTorque: 0.20,
+  // N·m. 아무것에도 닿지 않은 발을 개폐 속도(clawMotorSpeed)대로 움직이는 구동력.
+  // 파지 토크와 분리되어 있어, 파지력을 약하게 해도 벌리고 오므리는 속도는 그대로다.
+  clawMoveTorque: 1.00,
   clawGripDamping: 0.35,
   clawMaxStiffness: 400, // 역산 강성 상한 (수치 안정용)
   clawFingerMass: 0.18,
@@ -67,6 +70,10 @@ export const DEFAULTS = {
   clawSpeedZ: 0.19,
   clawSpeedDown: 0.15,
   clawSpeedUp: 0.22,
+  clawPause: 1.0,        // 자동 시퀀스의 각 동작 사이 멈춤 시간 (s)
+  // 하강하면서 집게가 수직축을 중심으로 도는 각도(도, 위에서 봤을 때 시계방향이 +).
+  // 끝까지 내려갔을 때 이 각도가 된다. 잡고 올리고 옮기는 동안 유지되고, 벌린 뒤 복귀하며 풀린다.
+  clawDescendYaw: 7,
   // 접촉 후에도 더 내려가는 양. 0 이면 닿는 즉시 정지하고, 이 경우 기법 B(눌러서
   // 떨어뜨리기)가 물리적으로 불가능하다. 실제 기계도 관성 때문에 조금 더 눌린다.
   descendOvertravel: 0.005,
@@ -81,12 +88,11 @@ export const DEFAULTS = {
   homeZ: 0.16,           // 1번 봉 위. 여기서 출발하고 여기로 복귀한다
   limitX: 0.28,          // cabW(0.50) - 벌렸을 때 팔 최대반경(약 0.199) - 여유
   limitZfront: 0.32,
-  limitZback: -0.185,     // 4번 봉 뒤 진열대에는 못 간다
-
-  // ---- grip 실패 확률 ----
-  gripFailBase: 0.50,    // 파지 품질이 0일 때의 실패 확률
-  gripFailMin: 0.30,     // 완벽하게 잡았을 때의 실패 확률
-  gripEdgeMargin: 0.016, // 발가락이 박스 밑으로 파고들 수 있는 최대 깊이(약 1.6cm)에 맞춘 판정 스케일
+  // 4번 봉(z=-0.16)과 진열대 앞 모서리(z≈-0.259) 사이까지 간다.
+  // 하강 회전(clawDescendYaw 7°)으로 다리 하나는 뒤(진열대 쪽), 하나는 앞(4번 봉 쪽)으로 돈다.
+  // 측정(7°): -0.220 은 진열대 모서리에 스침, -0.215 ~ -0.210 통과, -0.205 는 4번 봉에 걸림.
+  // 그 가운데 값. 회전 각도를 바꾸면 이 범위도 달라진다. 진열대 위로는 못 간다.
+  limitZback: -0.212,
 
   // ---- 기구/월드 ----
   cabW: 0.50,            // 캐비닛 반폭 |x|
@@ -106,6 +112,20 @@ export const DEFAULTS = {
 export function cabDepthFront(cfg) {
   return cfg.barOuterZ + cfg.barRadius + cfg.boxW + cfg.frontGap;
 }
+
+// 피규어 종류. 고르면 values 의 값(박스 크기·봉 위치)으로 세팅이 바뀌고 기구를 다시 만든다.
+// 새 종류는 여기에 { id, name, values } 를 추가하면 UI 에 번호 버튼이 자동으로 생긴다.
+export const FIGURES = [
+  {
+    id: 1,
+    name: '1번',
+    values: {
+      boxW: 0.12, boxH: 0.10, boxD: 0.20,               // 박스 크기
+      barGapZ: 0.140, barOuterZ: 0.160, barRaise: 0.045, // 봉 위치
+      boxArt: 'lumina',                                  // 박스 디자인
+    },
+  },
+];
 
 // UI 패널 생성용 스키마
 export const SCHEMA = [
@@ -138,33 +158,27 @@ export const SCHEMA = [
     ['paperRecover', '복원 시정수', 0.02, 2.0, 0.02],
   ]},
   { group: '집게', items: [
-    ['clawGripTorque', '파지 토크(N·m)', 0.05, 4.0, 0.02],
-    ['clawSlipTorque', '실패 시 토크', 0.0, 1.5, 0.02],
-    ['clawSlipSpread', '실패 시 벌어짐(rad)', 0.0, 1.0, 0.02],
-    ['clawSlipDelay',  '실패 발현 지연(s)', 0.0, 2.0, 0.05],
+    ['clawGripTorque', '파지 토크(N·m, 접촉 시)', 0.05, 4.0, 0.02],
+    ['clawMoveTorque', '개폐 구동력(N·m, 비접촉)', 0.1, 4.0, 0.05],
     ['clawGripDamping', '파지 감쇠', 0, 3, 0.05],
-    ['clawOpenSpread',  '벌림각 — 열림(rad)', 0.1, 1.3, 0.01],
     ['clawCloseSpread', '벌림각 — 닫힘(rad)', 0.0, 0.8, 0.01],
     ['clawPivotX',   '발 축 간격 |x|', 0.03, 0.18, 0.005],
-    ['clawArmLen',   '팔 길이', 0.06, 0.28, 0.005],
-    ['clawElbowOut', '팔꿈치 벌어짐', 0.0, 0.09, 0.002],
-    ['clawElbowAt',  '팔꿈치 높이 비율', 0.15, 0.85, 0.01],
-    ['clawTipThick', '발끝 두께(절반)', 0.002, 0.03, 0.001],
+    ['clawElbowOut', '팔 수평 길이(벌림 기준)', 0.03, 0.16, 0.002],
+    ['clawArmLen',   '팔 수직 길이(벌림 기준)', 0.06, 0.28, 0.005],
+    ['clawTipThick', '발끝 두께(절반)', 0.0005, 0.01, 0.0005],
     ['clawTipWidth', '발끝 폭(절반)', 0.005, 0.06, 0.001],
     ['clawTipLen',   '발끝 길이(절반)', 0.008, 0.06, 0.001],
+    ['clawTipRaise', '발바닥 붙는 높이', 0.0, 0.06, 0.0005],
     ['clawFingerMass', '발 질량(kg)', 0.02, 1.0, 0.01],
     ['clawMotorSpeed', '개폐 속도', 0.5, 15, 0.1],
-  ]},
-  { group: 'grip 실패 확률', items: [
-    ['gripFailBase', '최악 파지 실패율', 0, 1, 0.01],
-    ['gripFailMin',  '최선 파지 실패율', 0, 1, 0.01],
-    ['gripEdgeMargin', '파지 깊이 판정 스케일', 0.004, 0.06, 0.001],
   ]},
   { group: '집게 이동', items: [
     ['clawSpeedX', '좌우 속도', 0.05, 1.0, 0.01],
     ['clawSpeedZ', '전후 속도', 0.05, 1.0, 0.01],
     ['clawSpeedDown', '하강 속도', 0.05, 1.0, 0.01],
     ['clawSpeedUp', '상승 속도', 0.05, 1.0, 0.01],
+    ['clawPause', '동작 사이 멈춤(s)', 0.0, 3.0, 0.05],
+    ['clawDescendYaw', '하강 시 회전(°, 시계방향+)', -20, 20, 0.5],
     ['clawMinY', '하강 한계(헤드 y)', 0.50, 0.95, 0.005],
     ['descendOvertravel', '접촉 후 추가 하강(누름)', 0.0, 0.08, 0.002],
     ['homeX', '홈 위치 x', -0.45, 0.45, 0.01],
@@ -178,7 +192,7 @@ export const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v13';
+const KEY = 'ufo-catcher-cfg-v27';
 
 export function loadConfig() {
   const cfg = { ...DEFAULTS };

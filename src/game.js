@@ -12,11 +12,17 @@ export const STATE = {
   AIM_X: '좌우 이동 중 (버튼을 놓으면 정지)',
   AIM_X_DONE: '좌우 정지 — 전진 버튼을 누르세요',
   AIM_Z: '전진 중 (버튼을 놓으면 하강)',
-  AIM_FREE: '자유 조작 — 이동/전진 반복 가능, 정지 버튼으로 하강',
+  OPEN: '집게 벌리는 중',
+  OPEN_WAIT: '벌림 완료 — 잠시 대기',
   DESCEND: '하강 중 — 정지 버튼 / 접촉 시 자동 정지',
+  BOTTOM_WAIT: '하강 완료 — 잠시 대기',
   CLOSE: '집게 오므리는 중',
+  CLOSE_WAIT: '오므림 완료 — 잠시 대기',
   LIFT: '들어올리는 중',
-  RELEASE: '집게 벌리는 중',
+  TOP_WAIT: '상승 완료 — 잠시 대기',
+  CARRY: '중앙으로 이동 중',
+  CENTER_WAIT: '중앙 도착 — 잠시 대기',
+  RELEASE: '집게 벌림 — 잠시 대기',
   RETURN: '시작점으로 복귀 중',
   WIN: '성공! 상품이 틈으로 낙하',
 };
@@ -38,13 +44,12 @@ export class Game {
 
     this.state = 'IDLE';
     this.timer = 0;
-    this.freeMode = false;      // true 면 좌우/전진을 몇 번이든 다시 조작 가능
     this.axisEngaged = false;
-    this.dirX = -1;             // 홈이 가장 오른쪽이므로 왼쪽(-X)으로 진행
+    this.yaw = 0;               // 집게 수직축 회전 (rad) — update() 참고
+    this.dirX = -1;            // 홈이 가장 오른쪽이므로 왼쪽(-X)으로 진행
     this.dirZ = -1;             // 앞(+Z)에서 뒤(-Z)로 진행
     this.btn = { move: false, fwd: false, stop: false };
     this.prevBtn = { move: false, fwd: false, stop: false };
-    this.lastGrip = { quality: 0, failP: 0, roll: 0, failed: false };
     this.contactStop = false;
     this.pressUntil = null;
     this.stopReason = '';
@@ -61,7 +66,8 @@ export class Game {
     if (this.boxMesh) {
       this.scene.remove(this.boxMesh);
       this.boxMesh.geometry.dispose();
-      this.boxMesh.material.dispose();
+      // 인쇄면 텍스처는 figurebox.js 가 캐시해 재사용하므로 재질만 버린다
+      for (const m of [].concat(this.boxMesh.material)) m.dispose();
     }
 
     this.clawBoxPairs = new Set();
@@ -132,7 +138,6 @@ export class Game {
     if (this.state !== 'IDLE') return false;
     this.attempts++;
     if (!this.clawTouchingBox()) this.claw.close();  // 박스가 얹혀 있으면 벌린 채로 시작
-    this.claw.setGripTorque(this.cfg.clawGripTorque);
     this.setState('AIM_X');
     return true;
   }
@@ -143,18 +148,39 @@ export class Game {
     this.resetBox();
     this.claw.teleport(cfg.homeX, cfg.clawTopY, cfg.homeZ);
     this.claw.close();
-    this.claw.setGripTorque(cfg.clawGripTorque);
+    this.yaw = 0;
     this.stopReason = '';
-    this.lastGrip = { quality: 0, failP: 0, roll: 0, failed: false };
     this.setState('IDLE');
   }
 
-  /** 집게를 벌리고 자동 하강 시작 */
+  /** 조준이 끝나면 발을 먼저 끝까지 벌린다. 다 벌어지면 OPEN 이 하강을 시작한다. */
   beginDescend() {
     this.claw.open();
     this.contactStop = false;
     this.pressUntil = null;
-    this.setState('DESCEND');
+    this.setState('OPEN');
+  }
+
+  /**
+   * 집게 헤드를 (x, z) 로 한 프레임만큼 옮긴다. 두 축은 각자의 속도로 동시에 움직인다.
+   * @returns 도착했으면 true
+   */
+  moveToward(x, z, dt) {
+    const { claw, cfg } = this;
+    const dx = x - claw.pos.x;
+    const dz = z - claw.pos.z;
+    const sx = cfg.clawSpeedX * dt, sz = cfg.clawSpeedZ * dt;
+    claw.pos.x += clamp(dx, -sx, sx);
+    claw.pos.z += clamp(dz, -sz, sz);
+    return Math.abs(dx) <= sx && Math.abs(dz) <= sz;
+  }
+
+  /** 박스를 내려놓는 중앙 지점: 좌우 정중앙, 앞뒤는 2–3번 봉 사이 한가운데 */
+  centerPoint() {
+    const bars = barLayout(this.cfg);
+    const z2 = bars.find((b) => b.n === 2).z;
+    const z3 = bars.find((b) => b.n === 3).z;
+    return { x: 0, z: (z2 + z3) / 2 };
   }
 
   setState(s) {
@@ -213,8 +239,7 @@ export class Game {
           claw.pos.x = clamp(claw.pos.x + this.dirX * cfg.clawSpeedX * dt, -cfg.limitX, cfg.limitX);
         } else if (this.axisEngaged) {
           this.axisEngaged = false;
-          if (this.freeMode) { this.dirX *= -1; this.setState('AIM_FREE'); }
-          else this.setState('AIM_X_DONE');
+          this.setState('AIM_X_DONE');
         }
         break;
 
@@ -229,29 +254,30 @@ export class Game {
           claw.pos.z = clamp(claw.pos.z + this.dirZ * cfg.clawSpeedZ * dt, cfg.limitZback, cfg.limitZfront);
         } else if (this.axisEngaged) {
           this.axisEngaged = false;
-          if (this.freeMode) { this.dirZ *= -1; this.setState('AIM_FREE'); }
-          else { this.beginDescend(); }
+          this.beginDescend();
         }
         break;
 
-      // 자유 조작 모드: 좌우/전진을 몇 번이든 다시 조작, 정지 버튼으로 하강 시작
-      case 'AIM_FREE':
-        if (this.pressed('move')) { this.setState('AIM_X'); break; }
-        if (this.pressed('fwd')) { this.setState('AIM_Z'); break; }
-        if (this.pressed('stop')) {
-          this.beginDescend();
-        }
+      // ─── 여기부터는 실기와 같은 자동 시퀀스 ───
+      // 벌림 → (대기) → 하강 → (대기) → 오므림 → (대기) → 상승 → (대기)
+      // → 닫은 채 중앙으로 이동 → (대기) → 벌림 → (대기) → 시작점 복귀
+
+      // 발이 끝까지 벌어진 뒤, 잠시 기다렸다가 내려가기 시작한다
+      case 'OPEN':
+        if (claw.settled(0.05) || this.timer > 1.0) this.setState('OPEN_WAIT');
+        break;
+
+      case 'OPEN_WAIT':
+        if (this.timer >= cfg.clawPause) this.setState('DESCEND');
         break;
 
       case 'DESCEND': {
         claw.pos.y = Math.max(cfg.clawMinY, claw.pos.y - cfg.clawSpeedDown * dt);
         const bottom = claw.pos.y <= cfg.clawMinY + 1e-6;
         const stopBtn = this.pressed('stop');
-        // 발이 벌어지기 전(0.15초)엔 접촉 정지를 무시해 헛정지 방지
-        const touched = this.contactStop && this.timer > 0.15;
 
         // 접촉하면 곧바로 멈추지 않고 overtravel 만큼 더 눌러 준다 (기법 B의 근거)
-        if (touched && this.pressUntil === null) {
+        if (this.contactStop && this.pressUntil === null) {
           this.pressUntil = claw.pos.y - cfg.descendOvertravel;
         }
         const pressed = this.pressUntil !== null && claw.pos.y <= this.pressUntil;
@@ -259,51 +285,62 @@ export class Game {
         if (bottom || stopBtn || pressed) {
           this.stopReason = stopBtn ? '정지 버튼'
             : (pressed ? `접촉 자동 정지 (+${(cfg.descendOvertravel * 100).toFixed(1)}cm 누름)` : '하강 한계');
-          claw.close();
-          this.setState('CLOSE');
+          this.setState('BOTTOM_WAIT');
         }
         break;
       }
 
-      case 'CLOSE':
-        if (this.timer > 0.55) {
-          this.rollGrip();
-          this.setState('LIFT');
+      case 'BOTTOM_WAIT':
+        if (this.timer >= cfg.clawPause) {
+          claw.close();
+          this.setState('CLOSE');
         }
+        break;
+
+      // 박스를 물면 발이 끝까지 닫히지 않으므로, 실제 각도가 아니라 명령값 기준으로 판단
+      case 'CLOSE':
+        if (claw.reachedTarget()) this.setState('CLOSE_WAIT');
+        break;
+
+      case 'CLOSE_WAIT':
+        if (this.timer >= cfg.clawPause) this.setState('LIFT');
         break;
 
       case 'LIFT':
         claw.pos.y = Math.min(cfg.clawTopY, claw.pos.y + cfg.clawSpeedUp * dt);
-        // 파지 실패는 들어올리는 도중 발이 벌어지며 드러난다
-        if (this.lastGrip.failed && this.timer > cfg.clawSlipDelay) claw.slip();
-        // 끝까지 올라가면 그 자리에서 먼저 벌린다 (박스는 집어 올린 자리로 떨어진다)
-        if (claw.pos.y >= cfg.clawTopY - 1e-4) {
+        if (claw.pos.y >= cfg.clawTopY - 1e-4) this.setState('TOP_WAIT');
+        break;
+
+      case 'TOP_WAIT':
+        if (this.timer >= cfg.clawPause) this.setState('CARRY');
+        break;
+
+      // 발을 닫은(= 잡은) 채로 중앙 지점까지 옮긴다
+      case 'CARRY': {
+        const c = this.centerPoint();
+        if (this.moveToward(c.x, c.z, dt)) this.setState('CENTER_WAIT');
+        break;
+      }
+
+      case 'CENTER_WAIT':
+        if (this.timer >= cfg.clawPause) {
           claw.open();
           this.setState('RELEASE');
         }
         break;
 
-      // 벌린 채로 박스가 발에서 떨어질 때까지 기다린다 (닫으면 다시 잡혀 버림)
+      // 벌린 뒤 잠시 기다려 박스가 발에서 떨어지게 한다
       case 'RELEASE':
-        if (this.timer > 0.9 && (!this.clawTouchingBox() || this.timer > 2.5)) {
-          claw.setGripTorque(cfg.clawGripTorque);
-          this.setState('RETURN');
-        }
+        if (this.timer >= cfg.clawPause) this.setState('RETURN');
         break;
 
-      // 벌린 채로 시작점까지 돌아간 뒤 오므린다
-      case 'RETURN': {
-        const dx = cfg.homeX - claw.pos.x;
-        const dz = cfg.homeZ - claw.pos.z;
-        const sx = cfg.clawSpeedX * dt, sz = cfg.clawSpeedZ * dt;
-        claw.pos.x += Math.max(-sx, Math.min(sx, dx));
-        claw.pos.z += Math.max(-sz, Math.min(sz, dz));
-        if (Math.abs(dx) < 1e-3 && Math.abs(dz) < 1e-3) {
+      // 벌린 채로 시작점까지 돌아간 뒤 오므린다 (닫은 채 이동하면 박스가 다시 잡힐 수 있다)
+      case 'RETURN':
+        if (this.moveToward(cfg.homeX, cfg.homeZ, dt)) {
           if (!this.clawTouchingBox()) claw.close();
           this.setState('IDLE');
         }
         break;
-      }
 
       // 자동 복귀하지 않는다. UI 의 "다시하기" 버튼이 restart() 를 부를 때까지 대기.
       case 'WIN':
@@ -319,19 +356,21 @@ export class Game {
       }
     }
 
-    claw.update(dt);
-  }
+    // 케이블이 풀리며 집게가 수직축으로 살짝 돈다.
+    // 하강 중에는 내려간 깊이에 비례해 돌고, 잡고·올리고·옮기는 동안은 그 각도를 유지한다
+    // (박스를 문 채로 되돌리면 박스가 비틀려 옮기는 도중 떨어진다 — 측정으로 확인).
+    // 발을 벌린 뒤부터 1초에 최대 각도만큼씩 풀린다.
+    const yawMax = cfg.clawDescendYaw * Math.PI / 180;
+    if (this.state === 'DESCEND') {
+      const depth = clamp((cfg.clawTopY - claw.pos.y) / Math.max(1e-6, cfg.clawTopY - cfg.clawMinY), 0, 1);
+      this.yaw = depth * yawMax;
+    } else if (this.state === 'RELEASE' || this.state === 'RETURN' || this.state === 'IDLE') {
+      const s = Math.abs(yawMax) * dt;
+      this.yaw -= clamp(this.yaw, -s, s);
+    }
+    claw.yaw = this.yaw;
 
-  /** 파지 품질을 계산하고 확률적으로 grip 실패를 판정 */
-  rollGrip() {
-    const cfg = this.cfg;
-    const quality = this.claw.gripQuality(this.boxBody, this.boxHalf);
-    const failP = cfg.gripFailMin + (cfg.gripFailBase - cfg.gripFailMin) * (1 - quality);
-    const roll = Math.random();
-    const failed = roll < failP;
-    this.claw.setGripTorque(failed ? cfg.clawSlipTorque : cfg.clawGripTorque);
-    this.lastGrip = { quality, failP, roll, failed };
-    return this.lastGrip;
+    claw.update(dt);
   }
 
   /** 집게(헤드/발)가 박스에 닿아 있는가 */
@@ -370,6 +409,7 @@ export class Game {
     this.claw.dispose();
     this.machine = new Machine(this.world, this.scene, this.cfg);
     this.claw = new Claw(this.world, this.scene, this.cfg);
+    this.yaw = 0;
     this.resetBox();
     this.setState('IDLE');
   }

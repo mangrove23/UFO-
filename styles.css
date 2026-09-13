@@ -15,6 +15,28 @@ canvas { display: block; }
   background: rgba(14, 18, 26, .82); border: 1px solid #232b38; border-radius: 10px;
   backdrop-filter: blur(6px); font-size: 12px;
 }
+.hud-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; margin: 0; padding: 2px 0; background: none; border: 0; cursor: pointer;
+  color: #e6ebf2; font: inherit; font-weight: 600; text-align: left;
+}
+.hud-head b { font-weight: 600; }
+.hud-caret {
+  flex: none; width: 8px; height: 8px; margin: 0 2px 3px;
+  border-right: 2px solid #8fa3bd; border-bottom: 2px solid #8fa3bd;
+  transform: rotate(45deg); transition: transform .15s;
+}
+.hud-head:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 3px; border-radius: 4px; }
+.hud-body { margin-top: 4px; }
+.hud.collapsed .hud-body { display: none; }
+
+/* ---------- 플레이 모드 / 개발자 모드 ----------
+   body.dev 가 없으면(플레이 모드) 개발용 요소를 숨기고, HUD 는 상태 문구 한 줄만 남긴다. */
+body:not(.dev) .dev-only { display: none !important; }
+body:not(.dev) .hud-body,
+body:not(.dev) .hud-caret { display: none; }
+body:not(.dev) .hud-head { cursor: default; }
+.hud.collapsed .hud-caret { transform: rotate(-45deg); margin-bottom: 0; }
 .hud hr { border: 0; border-top: 1px solid #232b38; margin: 7px 0; }
 .hud .row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
 .hud .row span { color: #8fa3bd; }
@@ -22,8 +44,6 @@ canvas { display: block; }
 .hud .row.wrap { display: block; }
 .hud .row.wrap b { display: block; text-align: left; white-space: normal; font-size: 11px; }
 .hud .muted { color: #7c8ba1; }
-.hud .good { color: #4ade80 !important; }
-.hud .bad { color: #fb7185 !important; }
 
 /* ---------- 조작 버튼 ---------- */
 .pad {
@@ -60,6 +80,23 @@ canvas { display: block; }
 .tool.active { background: #2563eb; border-color: #60a5fa; color: #fff; }
 .tool.accent { background: #1f2937; border-color: #475569; }
 
+/* 피규어 종류 선택 — 툴바 맨 아래 한 줄 */
+.figures {
+  flex-basis: 100%; display: flex; flex-wrap: wrap; justify-content: flex-end;
+  align-items: center; gap: 6px;
+}
+.figures-label { font-size: 11px; color: #8fa3bd; margin-right: 2px; }
+.tool.figure { min-width: 44px; }
+
+/* 모드 전환 알림 */
+.toast {
+  position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%);
+  padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 700;
+  background: rgba(10, 13, 19, .9); border: 1px solid #2b3547; color: #e6ebf2;
+  opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 9;
+}
+.toast.show { opacity: 1; }
+
 /* ---------- 튜닝 패널 ---------- */
 .panel {
   position: fixed; right: 12px; top: 82px; bottom: 12px; width: 320px;
@@ -83,14 +120,16 @@ canvas { display: block; }
   position: fixed; inset: 0; display: grid; place-content: center; pointer-events: none;
   opacity: 0; transition: opacity .25s; z-index: 8;
 }
-.overlay.show { opacity: 1; pointer-events: auto; }
+.overlay.show { opacity: 1; }
+/* 오버레이가 떠 있어도 캔버스를 계속 돌릴 수 있어야 한다.
+   패널은 포인터를 통과시키고, 다시하기 버튼만 클릭을 받는다. */
 .overlay .win {
   font-size: 56px; font-weight: 900; letter-spacing: 2px; color: #ffe066;
   text-shadow: 0 6px 30px rgba(255,224,102,.55); text-align: center;
   padding: 34px 56px 30px; border-radius: 18px;
   background: rgba(10, 13, 19, .82); border: 1px solid #2b3547;
-  backdrop-filter: blur(8px);
   box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  pointer-events: none;
 }
 .overlay .win span { display: block; font-size: 15px; font-weight: 600; color: #e6ebf2; letter-spacing: 0; margin-top: 8px; }
 .overlay .restart {
@@ -99,6 +138,7 @@ canvas { display: block; }
   color: #0b0e13; background: linear-gradient(#ffe066, #f6c531); border: 1px solid #fff3bf;
   box-shadow: 0 4px 0 #b58b16, 0 10px 24px rgba(0,0,0,.5);
   transition: transform .05s, box-shadow .05s;
+  pointer-events: auto;
 }
 .overlay .restart:hover { background: linear-gradient(#fff3bf, #ffe066); }
 .overlay .restart:active { transform: translateY(4px); box-shadow: 0 0 0 #b58b16, 0 4px 14px rgba(0,0,0,.5); }

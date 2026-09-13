@@ -17,7 +17,7 @@ $THREE_URL  = 'https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js'
 $RAPIER_URL = 'https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js'
 
 # dependency order
-$order = @('config.js','physics.js','orbitcam.js','paperbox.js','machine.js','claw.js','game.js','ui.js','main.js')
+$order = @('config.js','physics.js','orbitcam.js','figurebox.js','paperbox.js','machine.js','claw.js','game.js','ui.js','main.js')
 
 $parts = New-Object System.Collections.Generic.List[string]
 foreach ($name in $order) {
@@ -68,6 +68,13 @@ $outFile = Join-Path $distDir 'ufo-catcher.html'
 # GitHub Pages / Netlify 등은 index.html 을 기본 문서로 찾는다.
 # dist 폴더를 그대로 올리면 바로 배포되도록 같은 내용을 index.html 로도 쓴다.
 [System.IO.File]::WriteAllText((Join-Path $distDir 'index.html'), $html, $enc)
+
+# Box art images are loaded at runtime from assets/ (relative to the page), so ship them next to the HTML.
+# Without this folder the box falls back to the procedural canvas design.
+$assetsSrc = Join-Path $root 'assets'
+$assetsDst = Join-Path $distDir 'assets'
+if (Test-Path $assetsDst) { Remove-Item $assetsDst -Recurse -Force }
+if (Test-Path $assetsSrc) { Copy-Item $assetsSrc -Destination $assetsDst -Recurse }
 
 # GitHub Pages 의 Jekyll 전처리를 끈다 (밑줄로 시작하는 파일이 무시되는 것을 방지)
 [System.IO.File]::WriteAllText((Join-Path $distDir '.nojekyll'), '', $enc)
