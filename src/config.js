@@ -5,7 +5,7 @@ export const DEFAULTS = {
   // ---- 봉(bar) 배치 ----
   barRadius: 0.009,      // 봉 반지름 (1.8cm 굵기)
   barLength: 0.92,       // 봉 길이 (좌우축 X 방향)
-  barGapZ: 0.140,        // 2번-3번 봉 중심 간격 (틈). 실효 틈 = 이 값 - 2*barRadius
+  barGapZ: 0.130,        // 2번-3번 봉 중심 간격 (틈). 실효 틈 = 이 값 - 2*barRadius = 11.2cm
   barOuterZ: 0.160,      // 1번/4번 봉 중심의 |z|
   barLowY: 0.55,         // 2·3번 봉 중심 높이
   // 1·4번 봉이 2·3번보다 높은 양.
@@ -30,10 +30,11 @@ export const DEFAULTS = {
   boxArt: 'lumina',      // 박스 인쇄면 디자인 (src/figurebox.js 의 ARTS 키). 없는 키면 단색 박스
 
   // ---- 종이 찌그러짐 (시각 전용, 물리 형상은 강체 유지) ----
-  paperDent: 0.014,      // 최대 눌림 깊이
-  paperRadius: 0.060,    // 눌림이 퍼지는 반경
-  paperAttack: 0.06,     // 눌리는 속도(시정수, 작을수록 즉각)
-  paperRecover: 0.30,    // 되돌아오는 속도(시정수, 클수록 천천히)
+  // 빳빳한 코팅 판지: 얕게만 눌리고 금방 튀어 돌아온다
+  paperDent: 0.004,      // 최대 눌림 깊이
+  paperRadius: 0.050,    // 눌림이 퍼지는 반경
+  paperAttack: 0.08,     // 눌리는 속도(시정수, 작을수록 즉각)
+  paperRecover: 0.15,    // 되돌아오는 속도(시정수, 클수록 천천히)
 
   // ---- 집게 ----
   // 벌림각 spread: 0 = 두 발끝이 정중앙에서 맞닿음, 클수록 벌어짐.
@@ -121,7 +122,7 @@ export const FIGURES = [
     name: '1번',
     values: {
       boxW: 0.12, boxH: 0.10, boxD: 0.20,               // 박스 크기
-      barGapZ: 0.140, barOuterZ: 0.160, barRaise: 0.045, // 봉 위치
+      barGapZ: 0.130, barOuterZ: 0.160, barRaise: 0.045, // 봉 위치
       boxArt: 'lumina',                                  // 박스 디자인
     },
   },
@@ -192,7 +193,7 @@ export const SCHEMA = [
   ]},
 ];
 
-const KEY = 'ufo-catcher-cfg-v27';
+const KEY = 'ufo-catcher-cfg-v29';
 
 export function loadConfig() {
   const cfg = { ...DEFAULTS };

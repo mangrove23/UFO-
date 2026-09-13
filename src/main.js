@@ -6,6 +6,7 @@ import { loadConfig } from './config.js';
 import { initRapier, createWorld, DebugLines } from './physics.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
+import { initBoxArt } from './figurebox.js';
 
 const cfg = loadConfig();
 
@@ -59,6 +60,9 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
+
+// 박스 코팅 반사용 환경맵 (박스를 만들기 전에)
+initBoxArt(renderer);
 
 // ------------------------------------------------------------------ 물리 + 게임
 await initRapier();

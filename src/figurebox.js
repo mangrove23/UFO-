@@ -15,6 +15,38 @@ const PX_PER_M = 6000;          // 12cm → 720px
 // 면별 인쇄 이미지 폴더 (페이지 기준 상대 경로). 파일: front/back/left/right/top/bottom.png
 const IMAGE_BASE = 'assets/boxart/';
 const cache = new Map();
+let boxEnv = null;          // 코팅 반사용 환경맵 (initBoxArt 에서 만든다)
+let maxAniso = 8;
+
+/**
+ * 렌더러가 생긴 뒤, 박스를 만들기 전에 한 번 호출한다.
+ * 코팅된 박스의 광택이 보이려면 비칠 주변이 필요하므로, 게임기 안을 흉내 낸 작은 조명 방
+ * (천장 형광등 줄, 앞쪽 조명, 옅은 분홍·청록 LED)을 PMREM 환경맵으로 굽는다.
+ * 이 환경맵은 박스 재질에만 쓰여 다른 물체의 모습은 바뀌지 않는다.
+ */
+export function initBoxArt(renderer) {
+  maxAniso = renderer.capabilities.getMaxAnisotropy();
+  const env = new THREE.Scene();
+  const glow = (color, strength) => new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(strength), side: THREE.DoubleSide });
+  env.add(new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), new THREE.MeshBasicMaterial({ color: 0x1b1e27, side: THREE.BackSide })));
+  const panel = (w, h, color, strength, pos, rot) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), glow(color, strength));
+    m.position.set(...pos);
+    m.rotation.set(...rot);
+    env.add(m);
+  };
+  panel(5, 1.2, 0xfff4e0, 5, [0, 3.5, -1.0], [Math.PI / 2, 0, 0]);   // 천장 형광등 줄
+  panel(5, 1.2, 0xfff4e0, 5, [0, 3.5, 1.0], [Math.PI / 2, 0, 0]);
+  panel(3, 1.6, 0xffffff, 2.5, [0, 1.2, 3.9], [0, Math.PI, 0]);      // 앞쪽(플레이어 쪽) 조명
+  // 뒤쪽 벽 조명: 플레이어 시점(약 20° 위)에서 박스 윗면에 비치는 것은 기계 뒤쪽이라,
+  // 여기가 밝아야 윗면에 코팅 광택이 보인다 (측정: 너무 밝으면 그림이 하얗게 날아간다)
+  panel(6, 1.0, 0xfff6ea, 1.6, [0, 1.3, -3.9], [0, 0, 0]);
+  panel(0.6, 4, 0xff5fb8, 1.6, [-3.9, 0.5, 0], [0, Math.PI / 2, 0]); // 옆 LED
+  panel(0.6, 4, 0x6fd8ff, 1.4, [3.9, 0.5, 0], [0, -Math.PI / 2, 0]);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  boxEnv = pmrem.fromScene(env, 0.01).texture;
+  pmrem.dispose();
+}
 
 const FONT_EN = '"Segoe UI", "Helvetica Neue", Arial, sans-serif';
 const FONT_TITLE = '"Arial Black", "Segoe UI Black", "Helvetica Neue", Arial, sans-serif';
@@ -55,7 +87,7 @@ export function boxArtMaterials(cfg) {
       const canvas = face(cw, ch, m, dw, dh, draw);
       const tex = new THREE.CanvasTexture(canvas);
       tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = 8;
+      tex.anisotropy = maxAniso;
       // 면별 이미지가 있으면 불러와 같은 방향 변환으로 덮어 그린다. 실패하면 절차적 디자인이 남는다.
       if (art.imageDir) {
         const img = new Image();
@@ -73,8 +105,18 @@ export function boxArtMaterials(cfg) {
       return tex;
     }));
   }
-  // 코팅된 인쇄 판지: 살짝 광택
-  return cache.get(key).map((map) => new THREE.MeshStandardMaterial({ map, roughness: 0.55, metalness: 0 }));
+  // 빳빳한 코팅 판지: 인쇄면(약간 거친 종이) 위에 매끈한 투명 코팅층.
+  // 잉크를 살짝 어둡게(color) 해서 기계 안의 강한 조명과 코팅 반사가 더해져도 색이 날아가지 않게 한다.
+  return cache.get(key).map((map) => new THREE.MeshPhysicalMaterial({
+    map,
+    color: 0xd6d6d6,
+    roughness: 0.55,
+    metalness: 0,
+    clearcoat: 1,
+    clearcoatRoughness: 0.05,
+    envMap: boxEnv,
+    envMapIntensity: 0.7,
+  }));
 }
 
 /** 디버그용: 실제 박스 방향 그대로의 디자인 캔버스 */
